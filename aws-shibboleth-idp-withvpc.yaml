@@ -1,0 +1,187 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Description: >
+  This template utilizes AWS CodePipeline and AWS CodeBuild to build an
+  automated continuous deployment pipeline to Amazon Elastic Container Service
+  (Amazon ECS) using clusters powered by AWS Fargate or Amazon Elastic Compute
+  Cloud (Amazon EC2).  The container that is deployed is the Shibboleth IdP 
+  reference architecture.
+
+  An Application Load Balancer is also provisioned as a front end service
+  endpoint.  The endpoint is HTTP by default, but HTTPS can be enabled if
+  the parameter CreateHTTPSListener is set to true.  In this case, you must
+  also populate the CertificateARN parameter with the ARN of the certificate
+  that you wish to use on the load balancer.
+
+  Use this template if you would like to provision a new VPC with your deployment.
+  If you would like to use an existing VPC with this stack, please use the template
+  aws-shibboleth-idp-vpc.yaml
+
+Parameters:
+  LaunchType:
+    Type: String
+    Default: Fargate
+    AllowedValues:
+      - Fargate
+      - EC2
+    Description: >
+      The launch type for your service. Selecting EC2 will create an Auto
+      Scaling group of t2.micro instances for your cluster. See
+      https://docs.aws.amazon.com/AmazonECS/latest/developerguide/launch_types.html
+      to learn more about launch types.
+
+  TemplateBucket:
+    Type: String
+    Default: aws-shibboleth-reference-architecture
+    Description: >
+      The S3 bucket from which to fetch the templates used by this stack.
+      We recommend that you store your CloudFormation templates in your own S3 bucket
+      instead of using the one provided with this reference architecture.
+
+  CodeCommitRepoName:
+    Description: >
+      Name of the CodeCommit repository to create. Please verify Pattern and maxlength
+    Type: String
+    Default: 'shibboleth'
+    MaxLength: 100
+    AllowedPattern: '(^[A-Za-z0-9_\.-]+)'
+    ConstraintDescription: >
+      Must conform with the permitted CodeCommit repository name pattern.
+
+  SealerKeyVersionCount:
+    Type: Number
+    Default: 10
+    Description: The number of versions of the sealear key to support
+    
+  CreateHTTPSListener:
+    Type: String
+    Default: false
+    AllowedValues:
+      - true
+      - false
+    Description: >
+      Select wether to enable HTTPS on the load balancer.
+      If false, only HTTP will be enabled.
+      If you select true, you must provide a valid certificate ARN
+
+  CertificateARN:
+    Type: String
+    Default: ''
+    Description: >
+      Specify the ARN of the SSL certificate to be used on HTTPS listener (if CreateHTTPSListener=true)
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterLabels:
+      LaunchType:
+        default: "Launch Type"
+      CodeCommitRepoName:
+        default: "CodeCommit Repository Name"
+      TemplateBucket:
+        default: "Template Bucket"
+      CreateHTTPSListener:
+        default: "Create HTTPS Listener"
+      CertificateARN:
+        default: "Certificate ARN for HTTPS Listener (required if Create HTTPS Listner = true)"
+      SealerKeyVersionCount:
+        default: "Sealer Key Version Count"
+    ParameterGroups:
+      - Label:
+          default: ECS Cluster Configuration
+        Parameters:
+          - LaunchType
+      - Label:
+          default: CloudFormation Stack Configuration
+        Parameters:
+          - TemplateBucket
+      - Label:
+          default: CodeCommit Configuration
+        Parameters:
+          - CodeCommitRepoName
+      - Label:
+          default: Elastic Load Balancer Configuration
+        Parameters:
+          - CreateHTTPSListener
+          - CertificateARN
+      - Label:
+          default: Shibboleth Configuration
+        Parameters:
+          - SealerKeyVersionCount
+
+Resources:
+  Secrets:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${TemplateBucket}/templates/secrets.yml"
+      Parameters:
+        Name: !Sub ${AWS::StackName}-sealer-keys
+        LambdaBucket: !Ref TemplateBucket
+        SealerKeyVersionCount: !Ref SealerKeyVersionCount
+
+  Cluster:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${TemplateBucket}/templates/ecs-cluster.yaml"
+      Parameters:
+        LaunchType: !Ref LaunchType
+        SourceSecurityGroup: !GetAtt LoadBalancer.Outputs.SecurityGroup
+        Subnets: !GetAtt VPC.Outputs.PrivateSubnets
+        VpcId: !GetAtt VPC.Outputs.VpcId
+
+  DeploymentPipeline:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${TemplateBucket}/templates/deployment-pipeline.yaml"
+      Parameters:
+        Cluster: !GetAtt Cluster.Outputs.ClusterName
+        Service: !GetAtt Service.Outputs.Service
+        CodeCommitRepoName: !Ref CodeCommitRepoName
+        SecretsManagerSecretARN: !GetAtt Secrets.Outputs.SealerKeyArn
+        RepoSourceBucket: !Ref TemplateBucket
+
+  LoadBalancer:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${TemplateBucket}/templates/load-balancer.yaml"
+      Parameters:
+        LaunchType: !Ref LaunchType
+        Subnets: !GetAtt VPC.Outputs.Subnets
+        VpcId: !GetAtt VPC.Outputs.VpcId
+        CreateHTTPSListener: !Ref CreateHTTPSListener
+        CertificateARN: !Ref CertificateARN
+
+  VPC:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${TemplateBucket}/templates/vpc.yaml"
+      Parameters:
+        Name: !Ref AWS::StackName
+        VpcCIDR: 10.215.0.0/16
+        PublicSubnet1CIDR: 10.215.10.0/24
+        PublicSubnet2CIDR: 10.215.20.0/24
+        PrivateSubnet1CIDR: 10.215.30.0/24
+        PrivateSubnet2CIDR: 10.215.40.0/24
+
+  Service:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${TemplateBucket}/templates/service.yaml"
+      Parameters:
+        Cluster: !GetAtt Cluster.Outputs.ClusterName
+        LaunchType: !Ref LaunchType
+        TargetGroup: !GetAtt LoadBalancer.Outputs.TargetGroup
+        SourceSecurityGroup: !GetAtt LoadBalancer.Outputs.SecurityGroup
+        Subnets: !GetAtt VPC.Outputs.PrivateSubnets
+        ContainerImageURI: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${CodeCommitRepoName}
+        SealerKeyArn: !GetAtt Secrets.Outputs.SealerKeyArn
+
+Outputs:
+  ServiceUrl:
+    Description: The sample service that is being continuously deployed.
+    Value: !GetAtt LoadBalancer.Outputs.ServiceUrl
+
+  PipelineUrl:
+    Description: The continuous deployment pipeline in the AWS Management Console.
+    Value: !GetAtt DeploymentPipeline.Outputs.PipelineUrl

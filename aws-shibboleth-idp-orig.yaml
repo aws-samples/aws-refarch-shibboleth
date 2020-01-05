@@ -1,0 +1,252 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Description: >
+  This template utilizes AWS CodePipeline and AWS CodeBuild to build an
+  automated continuous deployment pipeline to Amazon Elastic Container Service
+  (Amazon ECS) using clusters powered by AWS Fargate or Amazon Elastic Compute
+  Cloud (Amazon EC2).  The container that is deployed is the Shibboleth IdP 
+  reference architecture.
+
+  An Application Load Balancer is also provisioned as a front end service
+  endpoint.  The endpoint is HTTP by default, but HTTPS can be enabled if
+  the parameter CreateHTTPSListener is set to true.  In this case, you must
+  also populate the CertificateARN parameter with the ARN of the certificate
+  that you wish to use on the load balancer.
+
+
+Parameters:
+  LaunchType:
+    Type: String
+    Default: Fargate
+    AllowedValues:
+      - Fargate
+      - EC2
+    Description: >
+      The launch type for your service. Selecting EC2 will create an Auto
+      Scaling group of t2.micro instances for your cluster. See
+      https://docs.aws.amazon.com/AmazonECS/latest/developerguide/launch_types.html
+      to learn more about launch types.
+
+  TemplateBucket:
+    Type: String
+    Default: aws-shibboleth-reference-architecture
+    Description: >
+      The S3 bucket from which to fetch the templates used by this stack.
+      We recommend that you store your CloudFormation templates in your own S3 bucket
+      instead of using the one provided with this reference architecture.
+
+  CodeCommitRepoName:
+    Description: >
+      Name of the CodeCommit repository to create. Please verify Pattern and maxlength
+    Type: String
+    Default: 'shibboleth'
+    MaxLength: 100
+    AllowedPattern: '(^[A-Za-z0-9_\.-]+)'
+    ConstraintDescription: >
+      Must conform with the permitted CodeCommit repository name pattern.
+
+  SealerKeyVersionCount:
+    Type: Number
+    Default: 10
+    Description: The number of versions of the sealear key to support
+    
+  CreateHTTPSListener:
+    Type: String
+    Default: false
+    AllowedValues:
+      - true
+      - false
+    Description: >
+      Select wether to enable HTTPS on the load balancer.
+      If false, only HTTP will be enabled.
+      If you select true, you must provide a valid certificate ARN
+
+  CertificateARN:
+    Type: String
+    Default: ''
+    Description: >
+      Specify the ARN of the SSL certificate to be used on HTTPS listener (if CreateHTTPSListener=true)
+
+  CreateVPC:
+    Type: String
+    Default: true
+    AllowedValues:
+      - true
+      - false
+    Description: >
+      Select wether to create a VPC as part of launching this template.
+      If true, a simple VPC will be deployed to host the resources provisioned.
+      If false, you must supply VPC and subnet information for the VPC you wish to use.
+
+  VPCID:
+    Description: >
+      Enter the VPC ID of an existing VPC (only required if CreateVPC=false)
+    Type: AWS::EC2::VPC::Id
+    Default: ''
+
+  PublicSubnet1ID:
+    Description: >
+      Enter the Subnet ID an existing public subnet (only required if CreateVPC=false)
+    Type: AWS::EC2::Subnet::Id
+    Default: ''
+
+  PublicSubnet2ID:
+    Description: >
+      Enter the Subnet ID an existing public subnet (only required if CreateVPC=false)
+    Type: AWS::EC2::Subnet::Id
+    Default: ''
+
+  PrivateSubnet1ID:
+    Description: >
+      Enter the Subnet ID an existing private subnet (only required if CreateVPC=false)
+    Type: AWS::EC2::Subnet::Id
+    Default: ''
+
+  PrivateSubnet2ID:
+    Description: >
+      Enter the Subnet ID an existing private subnet (only required if CreateVPC=false)
+    Type: AWS::EC2::Subnet::Id
+    Default: ''
+
+Conditions:
+  CreateVPC: !Equals [ !Ref CreateVPC, "true" ]
+  NoCreateVPC: !Equals [ !Ref CreateVPC, "false" ]
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterLabels:
+      LaunchType:
+        default: "Launch Type"
+      CodeCommitRepoName:
+        default: "CodeCommit Repository Name"
+      TemplateBucket:
+        default: "Template Bucket"
+      CreateVPC:
+        default: "Create VPC"
+      VPCID:
+        default: "VPC ID (required if Create VPC = false)"
+      PublicSubnet1ID:
+        default: "Public Subnet 1 ID (required if Create VPC = false)"
+      PublicSubnet2ID:
+        default: "Public Subnet 2 ID (required if Create VPC = false)"
+      PrivateSubnet1ID:
+        default: "Private Subnet 1 ID (required if Create VPC = false)"
+      PrivateSubnet2ID:
+        default: "Private Subnet 2 ID (required if Create VPC = false)"
+      CreateHTTPSListener:
+        default: "Create HTTPS Listener"
+      CertificateARN:
+        default: "Certificate ARN for HTTPS Listener (required if Create HTTPS Listner = true)"
+      SealerKeyVersionCount:
+        default: "Sealer Key Version Count"
+    ParameterGroups:
+      - Label:
+          default: ECS Cluster Configuration
+        Parameters:
+          - LaunchType
+      - Label:
+          default: CloudFormation Stack Configuration
+        Parameters:
+          - TemplateBucket
+      - Label:
+          default: CodeCommit Configuration
+        Parameters:
+          - CodeCommitRepoName
+      - Label:
+          default: VPC Configuration
+        Parameters:
+          - CreateVPC
+          - VPCID
+          - PublicSubnet1ID
+          - PublicSubnet2ID
+          - PrivateSubnet1ID
+          - PrivateSubnet2ID
+      - Label:
+          default: Elastic Load Balancer Configuration
+        Parameters:
+          - CreateHTTPSListener
+          - CertificateARN
+      - Label:
+          default: Shibboleth Configuration
+        Parameters:
+          - SealerKeyVersionCount
+
+Resources:
+  Secrets:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${TemplateBucket}/templates/secrets.yml"
+      Parameters:
+        Name: !Sub ${AWS::StackName}-sealer-keys
+        LambdaBucket: !Ref TemplateBucket
+        SealerKeyVersionCount: !Ref SealerKeyVersionCount
+
+  Cluster:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${TemplateBucket}/templates/ecs-cluster.yaml"
+      Parameters:
+        LaunchType: !Ref LaunchType
+        SourceSecurityGroup: !GetAtt LoadBalancer.Outputs.SecurityGroup
+        Subnets: !If [CreateVPC, !GetAtt VPC.Outputs.Subnets, !Join [ ",", [ !Ref PublicSubnet1ID, !Ref PublicSubnet2ID ] ]]
+        VpcId: !If [CreateVPC, !GetAtt VPC.Outputs.VpcId, !Ref VPCID]
+
+  DeploymentPipeline:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${TemplateBucket}/templates/deployment-pipeline.yaml"
+      Parameters:
+        Cluster: !GetAtt Cluster.Outputs.ClusterName
+        Service: !GetAtt Service.Outputs.Service
+        CodeCommitRepoName: !Ref CodeCommitRepoName
+        SecretsManagerSecretARN: !GetAtt Secrets.Outputs.SealerKeyArn
+        RepoSourceBucket: !Ref TemplateBucket
+
+  LoadBalancer:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${TemplateBucket}/templates/load-balancer.yaml"
+      Parameters:
+        LaunchType: !Ref LaunchType
+        Subnets: !If [CreateVPC, !GetAtt VPC.Outputs.Subnets, !Join [ ",", [ !Ref PublicSubnet1ID, !Ref PublicSubnet2ID ] ]]
+        VpcId: !If [CreateVPC, !GetAtt VPC.Outputs.VpcId, !Ref VPCID]
+        CreateHTTPSListener: !Ref CreateHTTPSListener
+        CertificateARN: !Ref CertificateARN
+
+  VPC:
+    Type: AWS::CloudFormation::Stack
+    Condition: CreateVPC
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${TemplateBucket}/templates/vpc.yaml"
+      Parameters:
+        Name: !Ref AWS::StackName
+        VpcCIDR: 10.215.0.0/16
+        PublicSubnet1CIDR: 10.215.10.0/24
+        PublicSubnet2CIDR: 10.215.20.0/24
+        PrivateSubnet1CIDR: 10.215.30.0/24
+        PrivateSubnet2CIDR: 10.215.40.0/24
+
+  Service:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${TemplateBucket}/templates/service.yaml"
+      Parameters:
+        Cluster: !GetAtt Cluster.Outputs.ClusterName
+        LaunchType: !Ref LaunchType
+        TargetGroup: !GetAtt LoadBalancer.Outputs.TargetGroup
+        SourceSecurityGroup: !GetAtt LoadBalancer.Outputs.SecurityGroup
+        Subnets: !If [CreateVPC, !GetAtt VPC.Outputs.PrivateSubnets, !Join [ ",", [ !Ref PrivateSubnet1ID, !Ref PrivateSubnet2ID ] ]]
+        ContainerImageURI: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${CodeCommitRepoName}
+        SealerKeyArn: !GetAtt Secrets.Outputs.SealerKeyArn
+
+
+Outputs:
+  ServiceUrl:
+    Description: The sample service that is being continuously deployed.
+    Value: !GetAtt LoadBalancer.Outputs.ServiceUrl
+
+  PipelineUrl:
+    Description: The continuous deployment pipeline in the AWS Management Console.
+    Value: !GetAtt DeploymentPipeline.Outputs.PipelineUrl
