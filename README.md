@@ -34,7 +34,7 @@ Start by launching the CloudFormation stack here: [![button](https://s3.amazonaw
 
 Alternatively, you can also manually launch the stack by using this template URL
 ~~~~
-https://aws-shibboleth-reference-architecture.s3.amazonaws.com/aws-shibboleth-idp.yaml
+https://aws-shibboleth-reference-architecture.s3.amazonaws.com/aws-shibboleth-idp-withvpc.yaml
 ~~~~
 
 ### Update the desired task count
