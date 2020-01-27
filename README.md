@@ -30,7 +30,9 @@ The following procedure will walk you through deploying a containerized Shibbole
 
 ### Launching your CloudFormation stack
 
-Launch the CloudFormation stack using your AWS account by selecting an AWS Region below.
+Launch the CloudFormation stack using your AWS account by selecting an AWS Region below.  The template has two options: one that includes a VPC and one that uses an existing VPC.
+
+#### Deploy VPC
 
 | AWS Region Code | Name | Launch |
 | --- | --- | --- 
@@ -42,6 +44,17 @@ Launch the CloudFormation stack using your AWS account by selecting an AWS Regio
 | eu-central-1 |EU (Frankfurt)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=eu-central-1#/stacks/new?stackName=ShibIDP&templateURL=https://aws-refarch-shibboleth-eu-central-1.s3.amazonaws.com/aws-shibboleth-idp-withvpc.yaml) |
 | eu-west-2 |EU (London)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=eu-west-2#/stacks/new?stackName=ShibIDP&templateURL=https://aws-refarch-shibboleth-eu-west-2.s3.amazonaws.com/aws-shibboleth-idp-withvpc.yaml) |
 
+#### Use existing VPC
+
+| AWS Region Code | Name | Launch |
+| --- | --- | --- 
+| us-east-1 |US East (N. Virginia)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?stackName=ShibIDP&templateURL=https://aws-refarch-shibboleth-us-east-1.s3.amazonaws.com/aws-shibboleth-idp-novpc.yaml) |
+| us-east-2 |US East (Ohio)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-east-2#/stacks/new?stackName=ShibIDP&templateURL=https://aws-refarch-shibboleth-us-east-2.s3.amazonaws.com/aws-shibboleth-idp-novpc.yaml) |
+| eu-west-1 |EU (Ireland)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=ShibIDP&templateURL=https://aws-refarch-shibboleth-us-west-1.s3.amazonaws.com/aws-shibboleth-idp-novpc.yaml) |
+| us-west-2 |US West (Oregon)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/new?stackName=ShibIDP&templateURL=https://aws-refarch-shibboleth-us-west-2.s3.amazonaws.com/aws-shibboleth-idp-novpc.yaml) |
+| ap-southeast-2 |AP (Sydney)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=ap-southeast-2#/stacks/new?stackName=ShibIDP&templateURL=https://aws-refarch-shibboleth-ap-southeast-2.s3.amazonaws.com/aws-shibboleth-idp-novpc.yaml) |
+| eu-central-1 |EU (Frankfurt)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=eu-central-1#/stacks/new?stackName=ShibIDP&templateURL=https://aws-refarch-shibboleth-eu-central-1.s3.amazonaws.com/aws-shibboleth-idp-novpc.yaml) |
+| eu-west-2 |EU (London)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=eu-west-2#/stacks/new?stackName=ShibIDP&templateURL=https://aws-refarch-shibboleth-eu-west-2.s3.amazonaws.com/aws-shibboleth-idp-novpc.yaml) |
 
 
 ### Update the desired task count
