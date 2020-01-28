@@ -95,7 +95,7 @@ Locate the root CloudFormation stack that was deployed for this reference archit
 
 When the page is loaded, you should see a screen that says 'Our Identity Provider (replace this placeholder with your organizational logo/label)'.  If you get an error that says '503 Service Temporarily Unavailable', then you probably have no tasks running in the ECS service.  See the above instructions to update the desired task count of your ECS service.
 
-[![unconfigured-idp-screenshot](images/unconfigured-idp-screenshot.png)]
+![unconfigured-idp-screenshot](images/unconfigured-idp-screenshot.png | width=457)
 
 ## Customizing your IdP
 
