@@ -224,7 +224,11 @@ If, after you login to the IdP, you get redirected and see an error such as the 
 
 then you may not have used the correct certificate (second one) from the https://*fully qualified domain for idp*/idp/shibboleth page.  Double check that you did and re-enter it in the AWS SSO configuration if needed.
 
+### Cleanup
 
-## Conclusion
+In order to successfully delete the resources created when you launched the stack, there are a couple of manual steps you will need to undertake before attempting to delete the base stack.  First, you will need to empty the bucket where the artificats from your CodePipeline executions reside and you will need to delete all the image from your Elastic Container Registry's Repository.  Once those are done, then you can proceed with deleting the base stack via the CloudFormation console.
+
+
+### Conclusion
 
 At this point, you have successfully deployed the latest Internet2 Shibboleth IdP container with integration of AWS Secrets Manager for the sealer key.  This is leveraging an AWS CodeCommit repo and have a CI/CD pipeline configured to build and deploy your version of the Shibboleth-IdP container.  To make changes, just edit your copy of the Dockerfile and check in your changes.  The CI/CD pipeline will automatically kick off a new build for you!
