@@ -1,0 +1,297 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Description: >
+  This template utilizes AWS CodePipeline and AWS CodeBuild to build an
+  automated continuous deployment pipeline to Amazon Elastic Container Service
+  (Amazon ECS) using clusters powered by AWS Fargate or Amazon Elastic Compute
+  Cloud (Amazon EC2).  The container that is deployed is the Shibboleth IdP 
+  reference architecture.
+
+  An Application Load Balancer is also provisioned as a front end service
+  endpoint.  HTTPS is enabled so you must also populate the CertificateARN
+  parameter with the ARN of the certificate that you wish to use on the load balancer.
+
+  Use this template if you would like to use an existing VPC with your deployment.
+  If you would like to provision a VPC with this stack, please use the template
+  aws-shibboleth-idp-vpc.yaml
+
+Parameters:
+  LaunchType:
+    Type: String
+    Default: Fargate
+    AllowedValues:
+      - Fargate
+      - EC2
+    Description: >
+      The launch type for your service. Selecting EC2 will create an Auto
+      Scaling group of t2.micro instances for your cluster. See
+      https://docs.aws.amazon.com/AmazonECS/latest/developerguide/launch_types.html
+      to learn more about launch types.
+
+  TemplateBucket:
+    Type: String
+    Default: aws-shibboleth-reference-architecture
+    Description: >
+      The S3 bucket from which to fetch the templates used by this stack.
+      We recommend that you store your CloudFormation templates in your own S3 bucket
+      instead of using the one provided with this reference architecture.
+
+  TemplateFolder:
+    Type: String
+    Default: ''
+    Description: >
+      The optional path to a folder in the TemplateBucket that concaints the CloudFormation templates. If not left blank, it must end with a '/'.
+
+  CodeCommitRepoName:
+    Description: >
+      Name of the CodeCommit repository to create. Please verify Pattern and maxlength
+    Type: String
+    Default: 'shibboleth'
+    MaxLength: 100
+    AllowedPattern: '(^[A-Za-z0-9_\.-]+)'
+    ConstraintDescription: >
+      Must conform with the permitted CodeCommit repository name pattern.
+
+  SealerKeyVersionCount:
+    Type: Number
+    Default: 10
+    Description: The number of versions of the sealear key to support
+
+  ParentDomain:
+    Type: String
+    Description: The base domain for the IdP such as 'example.com'
+
+  FullyQualifiedDomainName:
+    Type: String
+    Description: The fully qualified domain name for the IdP such as 'sso.example.com'
+
+  CertificateARN:
+    Type: String
+    Default: ''
+    Description: >
+      Specify the ARN of the SSL certificate to be used on HTTPS listener
+
+  LDAPUrl:
+    Type: String
+    Default: ldaps://ad-ldap.example.com:636
+    Description: >
+      The URL of the LDAP server.
+
+  LDAPBaseDN:
+    Type: String
+    Default: CN=Users,DC=example,DC=org
+    Description: >
+      The base DN of the LDAP server.
+
+  LDAPReadOnlyUser:
+    Type: String
+    Default: readonlyuser@example.com
+    Description: >
+      The username of a read-only user for connecting to the LDAP server.
+
+  LDAPReadOnlyPassword:
+    Type: String
+    NoEcho: true
+    Default: EnterYourPasswordHere
+    Description: >
+      The password of a read-only user for connecting to the LDAP server.
+
+  VPCID:
+    Description: >
+      Enter the VPC ID of an existing VPC
+    Type: AWS::EC2::VPC::Id
+    Default: ''
+
+  PublicSubnet1ID:
+    Description: >
+      Enter the Subnet ID an existing public subnet
+    Type: AWS::EC2::Subnet::Id
+    Default: ''
+
+  PublicSubnet2ID:
+    Description: >
+      Enter the Subnet ID an existing public subnet
+    Type: AWS::EC2::Subnet::Id
+    Default: ''
+
+  PrivateSubnet1ID:
+    Description: >
+      Enter the Subnet ID an existing private subnet
+    Type: AWS::EC2::Subnet::Id
+    Default: ''
+
+  PrivateSubnet2ID:
+    Description: >
+      Enter the Subnet ID an existing private subnet
+    Type: AWS::EC2::Subnet::Id
+    Default: ''
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterLabels:
+      LaunchType:
+        default: "Launch Type"
+      CodeCommitRepoName:
+        default: "CodeCommit Repository Name"
+      TemplateBucket:
+        default: "Template Bucket"
+      TemplateFolder:
+        default: "Template Folder"
+      ParentDomain:
+        default: "Base Domain"
+      FullyQualifiedDomainName:
+        default: "Fully Qualified Domain Name"
+      VPCID:
+        default: "VPC ID"
+      PublicSubnet1ID:
+        default: "Public Subnet 1 ID"
+      PublicSubnet2ID:
+        default: "Public Subnet 2 ID"
+      PrivateSubnet1ID:
+        default: "Private Subnet 1 ID"
+      PrivateSubnet2ID:
+        default: "Private Subnet 2 ID"
+      CertificateARN:
+        default: "Certificate ARN for HTTPS Listener"
+      SealerKeyVersionCount:
+        default: "Sealer Key Version Count"
+      LDAPUrl:
+        default: "LDAP server URL"
+      LDAPBaseDN:
+        default: "LDAP base DN"
+      LDAPReadOnlyUser:
+        default: "LDAP user"
+      LDAPReadOnlyPassword:
+        default: "LDAP password"
+    ParameterGroups:
+      - Label:
+          default: IdP Domain Information
+        Parameters:
+          - ParentDomain
+          - FullyQualifiedDomainName
+      - Label:
+          default: ECS Cluster Configuration
+        Parameters:
+          - LaunchType
+      - Label:
+          default: CloudFormation Stack Configuration
+        Parameters:
+          - TemplateBucket
+          - TemplateFolder
+      - Label:
+          default: CodeCommit Configuration
+        Parameters:
+          - CodeCommitRepoName
+      - Label:
+          default: VPC Configuration
+        Parameters:
+          - VPCID
+          - PublicSubnet1ID
+          - PublicSubnet2ID
+          - PrivateSubnet1ID
+          - PrivateSubnet2ID
+      - Label:
+          default: Elastic Load Balancer Configuration
+        Parameters:
+          - CertificateARN
+      - Label:
+          default: Shibboleth Configuration
+        Parameters:
+          - SealerKeyVersionCount
+      - Label:
+          default: LDAP Settings
+        Parameters:
+          - LDAPUrl
+          - LDAPBaseDN
+          - LDAPReadOnlyUser
+          - LDAPReadOnlyPassword
+
+Resources:
+  Secrets:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucket}.s3.amazonaws.com/${TemplateFolder}templates/secrets.yml"
+      Parameters:
+        Name: !Ref AWS::StackName
+        LambdaBucket: !Ref TemplateBucket
+        LambdaFolder: !Ref TemplateFolder
+        SealerKeyVersionCount: !Ref SealerKeyVersionCount
+        LDAPUrl: !Ref LDAPUrl
+        LDAPBaseDN: !Ref LDAPBaseDN
+        LDAPReadOnlyUser: !Ref LDAPReadOnlyUser
+        LDAPReadOnlyPassword: !Ref LDAPReadOnlyPassword
+
+  Cluster:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucket}.s3.amazonaws.com/${TemplateFolder}templates/ecs-cluster.yaml"
+      Parameters:
+        Name: !Ref AWS::StackName
+        LaunchType: !Ref LaunchType
+        SourceSecurityGroup: !GetAtt LoadBalancer.Outputs.SecurityGroup
+        Subnets: !Join [ ",", [ !Ref PrivateSubnet1ID, !Ref PrivateSubnet2ID ]]
+        VpcId: !Ref VPCID
+
+  DeploymentPipeline:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucket}.s3.amazonaws.com/${TemplateFolder}templates/deployment-pipeline.yaml"
+      Parameters:
+        Name: !Ref AWS::StackName
+        Cluster: !GetAtt Cluster.Outputs.ClusterName
+        Service: !GetAtt Service.Outputs.Service
+        CodeCommitRepoName: !Ref CodeCommitRepoName
+        ParentDomain: !Ref ParentDomain
+        FullyQualifiedDomainName: !Ref FullyQualifiedDomainName
+        SecretsManagerSigningARN: !GetAtt Secrets.Outputs.SigningArn
+        SecretsManagerBackchannelARN: !GetAtt Secrets.Outputs.BackchannelArn
+        SecretsManagerEncryptionARN: !GetAtt Secrets.Outputs.EncryptionArn
+        SecretsManagerLDAPSettingsARN: !GetAtt Secrets.Outputs.LDAPSettingsArn
+        SecretsManagerSealerKeyARN: !GetAtt Secrets.Outputs.SealerKeyArn
+        RepoSourceBucket: !Ref TemplateBucket
+        RepoSourceFolder: !Ref TemplateFolder
+
+  LoadBalancer:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucket}.s3.amazonaws.com/${TemplateFolder}templates/load-balancer.yaml"
+      Parameters:
+        LaunchType: !Ref LaunchType
+        Subnets: !Join [ ",", [ !Ref PublicSubnet1ID, !Ref PublicSubnet2ID ] ]
+        VpcId: !Ref VPCID
+        CreateHTTPSListener: true
+        CertificateARN: !Ref CertificateARN
+
+  Service:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucket}.s3.amazonaws.com/${TemplateFolder}templates/service.yaml"
+      Parameters:
+        Name: !Ref AWS::StackName
+        Cluster: !GetAtt Cluster.Outputs.ClusterName
+        DesiredCount: 0
+        LaunchType: !Ref LaunchType
+        TargetGroup: !GetAtt LoadBalancer.Outputs.TargetGroup
+        SourceSecurityGroup: !GetAtt LoadBalancer.Outputs.SecurityGroup
+        Subnets: !Join [ ",", [ !Ref PrivateSubnet1ID, !Ref PrivateSubnet2ID ] ]
+        ContainerImageURI: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${CodeCommitRepoName}
+        SealerKeyArn: !GetAtt Secrets.Outputs.SealerKeyArn
+
+Outputs:
+  LoadBalancerCanonicalHostedZoneID:
+    Description: The load balancer identifier
+    Value: !GetAtt LoadBalancer.Outputs.CanonicalHostedZoneID
+
+  LoadBalancerDNSName:
+    Description: Value to set your fully qualified domain names CNAME entry to in you DNS provider
+    Value: !GetAtt LoadBalancer.Outputs.DNSName
+
+  ServiceUrl:
+    Description: The URL of the IdP.
+    Value: !Sub https://${FullyQualifiedDomainName}/idp/
+
+  PipelineUrl:
+    Description: The continuous deployment pipeline in the AWS Management Console.
+    Value: !GetAtt DeploymentPipeline.Outputs.PipelineUrl

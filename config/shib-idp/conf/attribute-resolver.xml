@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<AttributeResolver
+        xmlns="urn:mace:shibboleth:2.0:resolver"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="urn:mace:shibboleth:2.0:resolver http://shibboleth.net/schema/idp/shibboleth-attribute-resolver.xsd">
+
+    <!-- ========================================== -->
+    <!--      Attribute Definitions                 -->
+    <!-- ========================================== -->
+
+    <!-- Simple attributes are exported directly from the LDAP connector. -->
+
+    <!-- This is the login id that the user entered in the login page -->
+    <AttributeDefinition id="loginId" xsi:type="PrincipalName" />
+
+    <!-- Create an email formatted version of the login id -->
+    <AttributeDefinition id="mail" xsi:type="Template">
+        <InputAttributeDefinition ref="loginId" />
+        <Template>
+          <![CDATA[
+               ${loginId}@XXXX-ParentDomain-XXXX
+          ]]>
+        </Template>
+    </AttributeDefinition>
+</AttributeResolver>
