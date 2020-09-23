@@ -34,7 +34,7 @@ The following procedure will walk you through deploying a containerized Shibbole
 * Test the IdP functionality
 * (Optional) Cloning the newly created CodeCommit repo to your development machine
 * (Optional) Customizing your IdP
-* (Optional) Adding Support for service providers to your IdP
+* (Optional) Adding support for service providers to your IdP
 * (Optional) Adding AWS SSO Support to your IdP
 
 ### Launching your CloudFormation stack
@@ -156,7 +156,7 @@ You would then go into the Secrets Manager section of the AWS Console and click 
   "cert": "-----BEGIN CERTIFICATE-----\nMIICsDCCAZgCCQDm1MJsQTRrLzANBgkqhkiG9w0BAQsFADAaMRgwFgYDVQQDDA9z\nc28uZXhhbXBsZS5jb20wHhcNMjAwNDMwMTYyMTU0WhcNMzAwNDI4MTYyMTU0WjAa\nMRgwFgYDVQQDDA9zc28uZXhhbXBsZS5jb20wggEiMA0GCSqGSIb3DQEBAQUAA4IB\nDwAwggEKAoIBAQChzPTGYsCIXJ6ez69gYVlY0PqZq7nHlYQNsxBUq+6zENcPmVgp\ntZQsQhSB78u+7nGNBB+C2ZTEcm4+sGwkCl0LOevM38v80bJcP2e92+cY+MyIsCVh\n0/SBGZaQndf8oAlEPI6ieCtyyb7lw9XnaTYMUPrhMnHdBJf/MVcPY/Zkj0UKfyPE\n38joqqNSMXgLYUk1CVH1LbxHcQjzFEp1D+I6hLW0U5bVSKz+J0J/QkH0xaf8x/Ti\nsuqhSCWRUvpJmuAea5NVJp3qD68uX8JRTpIZUtd3ExTAvEHHEfOANispaMsrn8lN\nlsLcNkatlXTBq+JStkiIITHyy8d5/lv0Y81xAgMBAAEwDQYJKoZIhvcNAQELBQAD\nggEBAC6M/FjsbuuGkizVT8wc9vlpS/oD5Sb5iA7rQO0eb44US6sEvglVuC2RTsHU\n/fIUYcLrZBSfbDBjiCIs1LRLsopFQObhGm/R2uyXcpHAIpFpIOPsHgcWY4T017dQ\n880NbMpGEHzgp8w2tRAivxsEeA0fQfGUZMAtiBmpUbib9y9Az8/QRM743k7xAEvF\n4s9s6hzw0Uva5gINhLHZdOtJFygbSXFD00MwgSUYPsvPWHz+OLVIvaptjsLLcnQE\nrHeop3FEeKIabAbRXFRQXATHA9LCeqCUBK5FrJuXA71oVN9g0+aR8cPzEinHGgo2\ng0KZhE4r8JoUZ5GeDhQworDdPfE=\n-----END CERTIFICATE-----\n"
 }
 ~~~
-### Adding Support for service providers to your IdP
+### Adding support for service providers to your IdP
 
 This solutions leverages the LocalDynamicMetadataProvider option for configuring service providers.  You can read more about how this works at https://wiki.shibboleth.net/confluence/display/IDP4/LocalDynamicMetadataProvider.  In order configure a new service provider, you would need to add metadata for the service provider to the “config/shib-idp/metadata/sp” directory of your repo.  You would then check the file in and push it to trigger a new deployment.  For an example of how this can be done, see the next section which discusses adding support for AWS SSO support.  The last section of steps in that go into a real-world example of how this can be done. 
 
