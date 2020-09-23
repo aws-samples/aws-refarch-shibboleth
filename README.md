@@ -194,7 +194,7 @@ Note: Within the *config/shib-idp/conf/ldap.properties* file, the settings assoc
 
 ### Modifying the SAML Payload
 
-Along the same lines as the *Note* listed above, the domain that is configured to be used as the email address domain by default within the SAML payload is set to the base domain you enter at stack creation time.  If you that doesn't work for your use case, you can modify the *config/shib-idp/conf/ldap.properties* file in your repo and set the *mail* attribute to whatever works for you.  By default it replaces the value of the *XXXX-ParentDomain-XXXX* string but if you manually change that it will not overwrite your setting as the pattern it is searching for won't be found.
+Along the same lines as the *Note* listed above, the domain that is configured to be used as the email address domain by default within the SAML payload is set to the base domain you enter at stack creation time.  If that does not work for your use case, you can modify the *config/shib-idp/conf/ldap.properties* file in your repo and set the *mail* attribute to whatever works for you.  By default it replaces the value of the *XXXX-ParentDomain-XXXX* string but if you manually change that it will not overwrite your setting as the pattern it is searching for won't be found.
 
 If ther are other customizations you need to make to the SAML payload, those will generally be done by making modifications some combination of the following files:
 
