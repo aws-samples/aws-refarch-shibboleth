@@ -12,7 +12,7 @@ ARG SECRETS_MANAGER_ENCRYPTION_ARN
 ARG SECRETS_MANAGER_SEALER_KEY_ARN
 ARG SECRETS_MANAGER_LDAP_SETTINGS_ARN
 
-ADD config/shib-idp/conf/idp.properties config/shib-idp/conf/ldap.properties config/shib-idp/conf/metadata-providers.xml config/shib-idp/conf/attribute-resolver.xml config/shib-idp/conf/attribute-filter.xml config/shib-idp/conf/saml-nameid.xml /opt/shibboleth-idp/conf/
+ADD config/shib-idp/conf/idp.properties config/shib-idp/conf/ldap.properties config/shib-idp/conf/metadata-providers.xml config/shib-idp/conf/attribute-resolver.xml config/shib-idp/conf/attribute-filter.xml config/shib-idp/conf/saml-nameid.xml config/shib-idp/conf/global.xml /opt/shibboleth-idp/conf/
 ADD config/shib-idp/metadata/idp-metadata.xml /opt/shibboleth-idp/metadata/
 ADD config/shib-idp/metadata/sp /opt/shibboleth-idp/metadata/sp
 ADD config/shib-idp/credentials/ldap-server.truststore /opt/shibboleth-idp/credentials/
@@ -40,11 +40,6 @@ RUN echo "Building the custom DataSealerKeyStrategy implementation that uses AWS
       AWSSecretsManagerKeyStrategy.java -d /opt/shibboleth-idp/edit-webapp/WEB-INF/classes/ && \
     cd ~ && \
     rm -rf /tmp/aws-secrets-manager-build
-
-# Modify the shibboleth global-system.xml file so that it will use our custom AWS Secrets Manager based DataSealerKeyStrategy
-RUN echo "Configuring Shibboleth to use the AWS Secrets Manager based DataSealerKeyStrategy"; \
-    yum install -y xmlstarlet; \
-    xmlstarlet ed -L -d "/_:beans/_:bean[@id='shibboleth.DataSealerKeyStrategy']" -s /_:beans -t elem -n bean -v "" -i /_:beans/bean -t attr -n id -v shibboleth.DataSealerKeyStrategy -i /_:beans/bean -t attr -n class -v AWSSecretsManagerKeyStrategy /opt/shibboleth-idp/system/conf/global-system.xml;
 
 # Install AWS CLI
 RUN curl "https://s3.amazonaws.com/aws-cli/awscli-bundle.zip" -o "awscli-bundle.zip" && \
