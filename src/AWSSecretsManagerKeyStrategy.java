@@ -28,6 +28,7 @@ import net.shibboleth.utilities.java.support.primitive.StringSupport;
 import net.shibboleth.utilities.java.support.primitive.TimerSupport;
 import net.shibboleth.utilities.java.support.resource.Resource;
 import net.shibboleth.utilities.java.support.security.DataSealerKeyStrategy;
+import net.shibboleth.utilities.java.support.security.KeyNotFoundException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,67 +50,197 @@ public class AWSSecretsManagerKeyStrategy extends AbstractInitializableComponent
 
   @Nonnull private Logger log = LoggerFactory.getLogger(AWSSecretsManagerKeyStrategy.class);
 
-  private String secretId;
+  /** Current key version loaded. */
+  @NonnullAfterInit private String currentVersion;
 
+  /** Current default key loaded. */
+  @NonnullAfterInit private SecretKey defaultKey;
+    
+  /** SecretsManager secret ID containing key.. */
+  @NonnullAfterInit private String secretId;
+
+  /** Time between key update checks. Default value: (PT15M). */
+  @Nonnull private Duration updateInterval;
+
+  /** Timer used to schedule update tasks. */
+  private Timer updateTaskTimer;
+
+  /** Timer used to schedule update tasks if no external one set. */
+  private Timer internalTaskTimer;
+
+  /** Task that checks for updated key version. */
+  private TimerTask updateTask;
+    
+  /** Constructor. */
+  /*
+  public BasicKeystoreKeyStrategy() {
+    updateInterval = Duration.ofMinutes(15);
+  }
+  */
+    
+  /**
+   * Set the secret ID.
+   * 
+   * @param id the secret ID
+   */
+  public void setSecretId(@Nonnull @NotEmpty final String id) {
+    ComponentSupport.ifInitializedThrowUnmodifiabledComponentException(this);
+        
+    secretId = Constraint.isNotNull(id, "Secret ID cannot be null");
+  }
+
+  /**
+   * Set the time between key update checks. A value of 0 indicates that no updates will be
+   * performed.
+   * 
+   * This setting cannot be changed after the service has been initialized.
+   * 
+   * @param interval time between key update checks
+   */
+  public void setUpdateInterval(@Nonnull final Duration interval) {
+    ComponentSupport.ifInitializedThrowUnmodifiabledComponentException(this);
+        
+    Constraint.isNotNull(interval, "Interval cannot be null");
+    Constraint.isFalse(interval.isNegative(), "Interval cannot be negative");
+
+    updateInterval = interval;
+  }
+
+  /**
+   * Set the timer used to schedule update tasks.
+   * 
+   * This setting cannot be changed after the service has been initialized.
+   * 
+   * @param timer timer used to schedule update tasks
+   */
+  public void setUpdateTaskTimer(@Nullable final Timer timer) {
+    ComponentSupport.ifInitializedThrowUnmodifiabledComponentException(this);
+
+    updateTaskTimer = timer;
+  }
+    
   /** {@inheritDoc} */
   @Override
   public void doInitialize() throws ComponentInitializationException {
-    log.info("doInitialize()");
+    log.debug("doInitialize()");
     try {
-      secretId = StringSupport.trimOrNull(System.getenv("SEALER_KEY_SECRET_ID"));
-      Constraint.isNotNull(secretId, "Environment variable SEALER_KEY_SECRET_ID cannot be null");
-    } catch (final ConstraintViolationException e) {
-      throw new ComponentInitializationException(e);
+      try {
+	//secretId = StringSupport.trimOrNull(System.getenv("SEALER_KEY_SECRET_ID"));
+	Constraint.isNotNull(secretId, "Secret ID cannot be null");
+      } catch (final ConstraintViolationException e) {
+	throw new ComponentInitializationException(e);
+      }
+
+      updateDefaultKey();
+    
+    } catch (final KeyException e) {
+      log.error("Error loading default key from secret ID '{}' {}", secretId, e.getMessage());
+      throw new ComponentInitializationException("Exception loading the default key", e);
     }
-    getDefaultKey();
+
+    if (!updateInterval.isZero()) {
+      updateTask = new TimerTask() {
+	@Override
+	public void run() {
+	  try {
+	    updateDefaultKey();
+	  } catch (final KeyException e) {
+		
+	  }
+	}
+      };
+      if (updateTaskTimer == null) {
+	internalTaskTimer = new Timer(TimerSupport.getTimerName(this), true);
+      } else {
+	internalTaskTimer = updateTaskTimer;
+      }
+      internalTaskTimer.schedule(updateTask, updateInterval.toMillis(), updateInterval.toMillis());
+    }
   }
 
-  public String createKey() {
-    log.info("createKey()");
-    try {
-      KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
-      keyGenerator.init(128);
-      SecretKey secretKey = keyGenerator.generateKey();
-      byte[] secretKeyBytes = secretKey.getEncoded();
-      AWSSecretsManager client = getClient();
-      PutSecretValueRequest putSecretValueRequest = new PutSecretValueRequest();
-      putSecretValueRequest.setSecretId(secretId);
-      putSecretValueRequest.setSecretBinary(ByteBuffer.wrap(secretKeyBytes));
-      return client.putSecretValue(putSecretValueRequest).getVersionId();
-    } catch (NoSuchAlgorithmException ex) {
-      log.error("COULD NOT CREATE KEY", ex);
+  /** {@inheritDoc} */
+  @Override
+  protected void doDestroy() {
+    if (updateTask != null) {
+      updateTask.cancel();
+      updateTask = null;
+      if (updateTaskTimer == null) {
+	internalTaskTimer.cancel();
+      }
+      internalTaskTimer = null;
     }
-    return null;
+    super.doDestroy();
   }
 
-  public Pair<String, SecretKey> getDefaultKey() {
-    log.info("getDefaultKey()");
-    GetSecretValueResult getSecretValueResult = getSecretValueResult(null);
-    SecretKey secretKey = getSecretKeyFromGetSecretValueResult(getSecretValueResult);
-    if (secretKey != null) {
-      log.info("getDefaultKey() returning new Pair => {}, {}", getSecretValueResult.getVersionId(), secretKey);
+@Nonnull public Pair<String,SecretKey> getDefaultKey() throws KeyException {
+    log.debug("getDefaultKey()");
+    ComponentSupport.ifNotInitializedThrowUninitializedComponentException(this);
+        
+    synchronized(this) {
+      if (defaultKey != null) {
+	return new Pair<>(currentVersion, defaultKey);
+      }
+      throw new KeyException("No key has been retrieved");
     }
-    return new Pair<>(getSecretValueResult.getVersionId(), secretKey);
+  }
+    
+  /**
+   * Update the loaded copy of the default key from SecretsManager.
+   * 
+   * @throws KeyException if the key cannot be updated
+  */
+  private void updateDefaultKey() throws KeyException {
+    synchronized(this) {
+      GetSecretValueResult getSecretValueResult = getSecretValueResult(null);
+      final String newVersion = getSecretValueResult.getVersionId();
+
+      if (currentVersion == null) {
+	log.info("Loading initial default key: {}", newVersion);
+      } else if (!currentVersion.equals(newVersion)) {
+	log.info("Updating default key from {} to {}", currentVersion, newVersion);
+      } else {
+	log.debug("Default key version has not changed, still {}", currentVersion);
+	return;
+      }
+                
+      SecretKey secretKey = getSecretKeyFromGetSecretValueResult(getSecretValueResult);
+
+      if (secretKey == null) {
+	log.error("Key could not be retrieved");
+	throw new KeyException("Key could not be retrieved on update");
+      }
+
+      defaultKey = secretKey;
+      currentVersion = getSecretValueResult.getVersionId();
+                
+      log.info("Default key updated to {}", currentVersion);
+    }
   }
 
-  public SecretKey getKey(String versionId) throws KeyException {
-    log.info("getKey() with secret id '{}' and version '{}'", secretId, versionId);
+  @Nonnull public SecretKey getKey(@Nonnull @NotEmpty final String versionId) throws KeyNotFoundException {
+    synchronized(this) {
+      log.debug("getKey() with secret id '{}' and version '{}'", secretId, versionId);
 
-    if(versionId.length() < 32 || versionId.length() > 64) {
-      throw new KeyException("Invalid version id length");
+      if (defaultKey != null && versionId.equals(currentVersion)) {
+	return defaultKey;
+      }
+            
+      if(versionId.length() < 32 || versionId.length() > 64) {
+	throw new KeyNotFoundException("Invalid version id length");
+      }
+
+      GetSecretValueRequest getSecretValueRequest = new GetSecretValueRequest().withSecretId(secretId)
+	  .withVersionId(versionId);
+      GetSecretValueResult getSecretValueResult = getSecretValueResult(versionId);
+
+      SecretKey secretKey = getSecretKeyFromGetSecretValueResult(getSecretValueResult);
+      if (secretKey == null) {
+	throw new KeyNotFoundException("Key not found");
+      }
+      log.debug("getKey({}) returning SecretKey => Format: {}, Algorithm: {}, Encoded Value: {}", versionId, secretKey.getFormat(), secretKey.getAlgorithm(), new String(secretKey.getEncoded()));
+      log.info("Retrieved secret key with version: {}", versionId);
+      return secretKey;
     }
-
-    GetSecretValueRequest getSecretValueRequest = new GetSecretValueRequest().withSecretId(secretId)
-        .withVersionId(versionId);
-    GetSecretValueResult getSecretValueResult = getSecretValueResult(versionId);
-
-    SecretKey secretKey = getSecretKeyFromGetSecretValueResult(getSecretValueResult);
-    if (secretKey != null) {
-      log.info("getKey({}) returning SecretKey => Format: {}, Algorithm: {}, Encoded Value: {}", versionId, secretKey.getFormat(), secretKey.getAlgorithm(), new String(secretKey.getEncoded()));
-    } else {
-      throw new KeyException("Key not found");
-    } 
-    return secretKey;
   }
 
   private AWSSecretsManager getClient() {
@@ -117,7 +248,7 @@ public class AWSSecretsManagerKeyStrategy extends AbstractInitializableComponent
   }
 
   private GetSecretValueResult getSecretValueResult(String versionId) {
-    log.info("getSecretValueResult({})", versionId);
+    log.debug("getSecretValueResult({})", versionId);
     AWSSecretsManager client = getClient();
 
     GetSecretValueRequest getSecretValueRequest = new GetSecretValueRequest().withSecretId(secretId);
