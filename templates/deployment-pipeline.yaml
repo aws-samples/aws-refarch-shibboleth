@@ -54,6 +54,7 @@ Resources:
       RepositoryDescription: Main code repository for holding the Docker build files for the Shibboleth reference architecture
       RepositoryName: !Ref CodeCommitRepoName
       Code:
+        BranchName: master
         S3: 
           Bucket: !Ref RepoSourceBucket
           Key: !Sub '${RepoSourceFolder}repo/code.zip'
