@@ -42,10 +42,14 @@ RUN echo "Building the custom DataSealerKeyStrategy implementation that uses AWS
     rm -rf /tmp/aws-secrets-manager-build
 
 # Install AWS CLI
-RUN curl "https://s3.amazonaws.com/aws-cli/awscli-bundle.zip" -o "awscli-bundle.zip" && \
-    unzip awscli-bundle.zip && \
-    ./awscli-bundle/install -i /usr/local/aws -b /usr/local/bin/aws && \
-    rm -rf ./awscli-bundle ./awscli-bundle.zip
+RUN echo "Installing the AWS CLI"; \
+    mkdir -p /tmp/aws-cli-installation && \
+    cd /tmp/aws-cli-installation && \
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
+    unzip awscliv2.zip && \
+    ./aws/install -i /usr/local/aws -b /usr/local/bin && \
+    cd ~ && \
+    rm -rf /tmp/aws-cli-installation
 
 # Install jq
 ENV JQ_VERSION='1.5'
