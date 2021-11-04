@@ -24,6 +24,9 @@ def sort_by_tag(version_tags):
   else:
     return sys.maxsize
 
+def reversed_enumerate(collection, start=0):
+    return zip(reversed(range(start, len(collection)+start)), reversed(collection))
+
 def lambda_handler(event, context):
     """Secrets Manager Rotation Template
 
@@ -209,12 +212,14 @@ def finish_secret(service_client, arn, token):
         service_client.update_secret_version_stage(SecretId=arn, VersionStage=prune_version_stage, RemoveFromVersionId=prune_version_id)
         del sorted_versions[-1]
         logger.info("finishSecret: REMOVED Stage %s from version %s" % (prune_version_stage, prune_version_id))
-    for offset, version in enumerate(sorted_versions, start=1):
+    for offset, version in reversed_enumerate(sorted_versions, start=1):
       version_stage = "AWSPREVIOUS-CUSTOM_"+str(offset)
       if((offset < len(sorted_versions)-1) and (offset < max_versions) and (len(sorted_versions) > offset-1) and (version_stage in sorted_versions[offset+1][1])):
+        logger.info("finishSecret: Moving %s stage to version %s from version %s for secret %s." % (version_stage, sorted_versions[offset][0], sorted_versions[offset+1][0], arn))
         service_client.update_secret_version_stage(SecretId=arn, VersionStage=version_stage, MoveToVersionId=sorted_versions[offset][0], RemoveFromVersionId=sorted_versions[offset+1][0])
         logger.info("finishSecret: Successfully set %s stage to version %s for secret %s.  Removed %s from version %s." % (version_stage, sorted_versions[offset][0], arn, version_stage, sorted_versions[offset+1][0]))
       elif(offset < len(sorted_versions)):
+        logger.info("finishSecret: Setting %s stage to version %s for secret %s." % (version_stage, sorted_versions[offset][0], arn))
         service_client.update_secret_version_stage(SecretId=arn, VersionStage=version_stage, MoveToVersionId=sorted_versions[offset][0])
         logger.info("finishSecret: Successfully set %s stage to version %s for secret %s." % (version_stage, sorted_versions[offset][0], arn))
     metadata = service_client.describe_secret(SecretId=arn)
