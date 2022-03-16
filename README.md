@@ -52,6 +52,7 @@ Launch the CloudFormation stack using your AWS account by selecting an AWS Regio
 | ap-southeast-2 |AP (Sydney)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=ap-southeast-2#/stacks/new?stackName=ShibIDP&templateURL=https://aws-refarch-shibboleth-ap-southeast-2.s3.amazonaws.com/aws-shibboleth-idp-withvpc.yaml) |
 | eu-central-1 |EU (Frankfurt)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=eu-central-1#/stacks/new?stackName=ShibIDP&templateURL=https://aws-refarch-shibboleth-eu-central-1.s3.amazonaws.com/aws-shibboleth-idp-withvpc.yaml) |
 | eu-west-2 |EU (London)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=eu-west-2#/stacks/new?stackName=ShibIDP&templateURL=https://aws-refarch-shibboleth-eu-west-2.s3.amazonaws.com/aws-shibboleth-idp-withvpc.yaml) |
+| ca-central-1 |Canada (Central)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=ca-central-1#/stacks/new?stackName=ShibIDP&templateURL=https://aws-refarch-shibboleth-ca-central-1.s3.amazonaws.com/aws-shibboleth-idp-withvpc.yaml) |
 
 #### Use existing VPC
 
@@ -64,6 +65,7 @@ Launch the CloudFormation stack using your AWS account by selecting an AWS Regio
 | ap-southeast-2 |AP (Sydney)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=ap-southeast-2#/stacks/new?stackName=ShibIDP&templateURL=https://aws-refarch-shibboleth-ap-southeast-2.s3.amazonaws.com/aws-shibboleth-idp-novpc.yaml) |
 | eu-central-1 |EU (Frankfurt)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=eu-central-1#/stacks/new?stackName=ShibIDP&templateURL=https://aws-refarch-shibboleth-eu-central-1.s3.amazonaws.com/aws-shibboleth-idp-novpc.yaml) |
 | eu-west-2 |EU (London)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=eu-west-2#/stacks/new?stackName=ShibIDP&templateURL=https://aws-refarch-shibboleth-eu-west-2.s3.amazonaws.com/aws-shibboleth-idp-novpc.yaml) |
+| ca-central-1 |Canada (Central)| [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=ca-central-1#/stacks/new?stackName=ShibIDP&templateURL=https://aws-refarch-shibboleth-ca-central-1.s3.amazonaws.com/aws-shibboleth-idp-novpc.yaml) |
 
 ### Update DNS
 Locate the root CloudFormation stack that was deployed for this reference architecture (note that there are nested stacks, but we are looking for the root stack).  Under the Outputs tab, locate the LoadBalancerDNSName entry.  You need to update your DNS entry for the fully qualified domain name you supplied when you launched the stack to be a CNAME that points to the LoadBalancerDNSName shown.
