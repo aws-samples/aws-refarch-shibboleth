@@ -74,6 +74,7 @@ Resources:
           - Effect: Allow
             Principal:
               Service: codebuild.amazonaws.com
+              AWS: "*"
             Action: sts:AssumeRole
 
   CodeBuildServiceRolePolicy:
