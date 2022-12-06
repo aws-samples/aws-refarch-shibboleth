@@ -76,6 +76,18 @@ Resources:
               Service: codebuild.amazonaws.com
             Action: sts:AssumeRole
 
+  DockerBuildRuntimeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !GetAtt CodeBuildServiceRole.Arn
+            Action: sts:AssumeRole
+
   CodeBuildServiceRolePolicy:
     Type: AWS::IAM::Policy
     Properties:
@@ -93,7 +105,6 @@ Resources:
               - logs:CreateLogGroup
               - logs:CreateLogStream
               - logs:PutLogEvents
-              - ecr:GetAuthorizationToken
           - Resource: !Sub arn:aws:s3:::${ArtifactBucket}/*
             Effect: Allow
             Action:
@@ -106,10 +117,16 @@ Resources:
               - ecr:GetDownloadUrlForLayer
               - ecr:BatchGetImage
               - ecr:BatchCheckLayerAvailability
-              - ecr:PutImage
-              - ecr:InitiateLayerUpload
-              - ecr:UploadLayerPart
-              - ecr:CompleteLayerUpload
+      Roles:
+        - !Ref CodeBuildServiceRole
+
+  DockerBuildRuntimeRolePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub ${Name}-DockerBuildRuntimeRolePolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
           - Resource:
               - !Ref SecretsManagerSigningARN
               - !Ref SecretsManagerBackchannelARN
@@ -122,8 +139,22 @@ Resources:
               - secretsmanager:PutSecretValue
               - secretsmanager:DescribeSecret
               - secretsmanager:ListSecretVersionIds
+          - Resource: "*"
+            Effect: Allow
+            Action:
+              - ecr:GetAuthorizationToken
+          - Resource: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECRRepo}
+            Effect: Allow
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
       Roles:
-        - !Ref CodeBuildServiceRole
+        - !Ref DockerBuildRuntimeRole      
 
   CodePipelineServiceRole:
     Type: AWS::IAM::Role
@@ -235,7 +266,7 @@ Resources:
               runtime-versions:
                 nodejs: 12
               commands:
-                - TEMP_ROLE=`aws sts assume-role --role-arn $CODE_BUILD_SERVICE_ROLE_ARN --role-session-name test`
+                - TEMP_ROLE=`aws sts assume-role --role-arn $DOCKER_BUILD_RUNTIME_ROLE_ARN --role-session-name ShibbolethDockerBuildRuntimeRole`
                 - export TEMP_ROLE
                 - echo $TEMP_ROLE
                 - export AWS_ACCESS_KEY_ID=$(echo "${TEMP_ROLE}" | jq -r '.Credentials.AccessKeyId')
@@ -268,8 +299,8 @@ Resources:
         EnvironmentVariables:
           - Name: AWS_DEFAULT_REGION
             Value: !Ref AWS::Region
-          - Name: CODE_BUILD_SERVICE_ROLE_ARN
-            Value: !GetAtt CodeBuildServiceRole.Arn
+          - Name: DOCKER_BUILD_RUNTIME_ROLE_ARN
+            Value: !GetAtt DockerBuildRuntimeRole.Arn
           - Name: PARENT_DOMAIN
             Value: !Ref ParentDomain
           - Name: FULLY_QUALIFIED_DOMAIN_NAME
