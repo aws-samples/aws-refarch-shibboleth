@@ -23,7 +23,7 @@ Parameters:
   TargetGroup:
     Type: String
 
-  SourceSecurityGroup:
+  SecurityGroup:
     Type: AWS::EC2::SecurityGroup::Id
 
   Subnets:
@@ -107,7 +107,7 @@ Resources:
         AwsvpcConfiguration:
           AssignPublicIp: DISABLED
           SecurityGroups:
-            - !Ref SourceSecurityGroup
+            - !Ref SecurityGroup
           Subnets: !Ref Subnets
       LoadBalancers:
         - ContainerName: shibboleth-idp
@@ -134,7 +134,7 @@ Resources:
       Family: !Sub shibboleth-idp-${Name}
       RequiresCompatibilities:
         - !If [ Fargate, "FARGATE", "EC2" ]
-      Memory: !If [ Fargate, 4096, 3884 ]
+      Memory: !If [ Fargate, 4096, 3883 ]
       Cpu: 2048
       NetworkMode: !If [ Fargate, "awsvpc", "bridge" ]
       TaskRoleArn: !Ref TaskRole
@@ -146,7 +146,7 @@ Resources:
             - Name: SEALER_KEY_SECRET_ID
               Value: !Ref SealerKeyArn
           Essential: true
-          Memory: !If [ Fargate, 4096, 3884 ]
+          Memory: !If [ Fargate, 4096, 3883 ]
           PortMappings:
             - ContainerPort: 443
           LogConfiguration:
@@ -160,3 +160,7 @@ Resources:
 Outputs:
   Service:
     Value: !If [ Fargate, !Ref FargateService, !Ref EC2Service ]
+  TaskRoleARN:
+    Value: !GetAtt TaskRole.Arn
+  TaskExecutionRoleARN:
+    Value: !GetAtt TaskExecutionRole.Arn

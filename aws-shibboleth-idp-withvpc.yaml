@@ -217,6 +217,15 @@ Resources:
         LDAPBaseDN: !Ref LDAPBaseDN
         LDAPReadOnlyUser: !Ref LDAPReadOnlyUser
         LDAPReadOnlyPassword: !Ref LDAPReadOnlyPassword
+  
+  SecurityGroups:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucket}.s3.amazonaws.com/${TemplateFolder}templates/security-groups.yml"
+      Parameters:
+        Name: !Ref AWS::StackName
+        LaunchType: !Ref LaunchType
+        VpcId: !GetAtt VPC.Outputs.VpcId
 
   Cluster:
     Type: AWS::CloudFormation::Stack
@@ -225,7 +234,7 @@ Resources:
       Parameters:
         Name: !Ref AWS::StackName
         LaunchType: !Ref LaunchType
-        SourceSecurityGroup: !GetAtt LoadBalancer.Outputs.SecurityGroup
+        SecurityGroup: !GetAtt SecurityGroups.Outputs.ECSSecurityGroup
         Subnets: !GetAtt VPC.Outputs.PrivateSubnets
         VpcId: !GetAtt VPC.Outputs.VpcId
 
@@ -247,6 +256,8 @@ Resources:
         SecretsManagerSealerKeyARN: !GetAtt Secrets.Outputs.SealerKeyArn
         RepoSourceBucket: !Ref TemplateBucket
         RepoSourceFolder: !Ref TemplateFolder
+        TaskRoleARN: !GetAtt Service.Outputs.TaskRoleARN
+        TaskExecutionRoleARN: !GetAtt Service.Outputs.TaskExecutionRoleARN
 
   LoadBalancer:
     Type: AWS::CloudFormation::Stack
@@ -258,6 +269,7 @@ Resources:
         VpcId: !GetAtt VPC.Outputs.VpcId
         CreateHTTPSListener: true
         CertificateARN: !Ref CertificateARN
+        LoadBalancerSecurityGroup: !GetAtt SecurityGroups.Outputs.LoadBalancerSecurityGroup
 
   VPC:
     Type: AWS::CloudFormation::Stack
@@ -281,7 +293,7 @@ Resources:
         DesiredCount: 0
         LaunchType: !Ref LaunchType
         TargetGroup: !GetAtt LoadBalancer.Outputs.TargetGroup
-        SourceSecurityGroup: !GetAtt LoadBalancer.Outputs.SecurityGroup
+        SecurityGroup: !GetAtt SecurityGroups.Outputs.ECSSecurityGroup
         Subnets: !GetAtt VPC.Outputs.PrivateSubnets
         ContainerImageURI: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${CodeCommitRepoName}
         SealerKeyArn: !GetAtt Secrets.Outputs.SealerKeyArn
