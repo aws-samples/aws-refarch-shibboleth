@@ -43,7 +43,7 @@ Conditions:
 
 
 Resources:
-  EcsServiceLinkedRole:
+  EcsServiceLinkedRole1:
     Type: "AWS::IAM::ServiceLinkedRole"
     Properties:
       AWSServiceName: "ecs.amazonaws.com"
