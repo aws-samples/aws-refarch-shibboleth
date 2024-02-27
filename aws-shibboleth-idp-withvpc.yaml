@@ -18,6 +18,12 @@ Description: >
   aws-shibboleth-idp-vpc.yaml
 
 Parameters:
+  ShibbolethVersionTag:
+    Type: String
+    Default: latest
+    Description: >
+      The tag to use for the base tier/shib-idp docker image.  Common options would be 'latest', 'latest5', or 'latest4'.  Any valid tag from https://hub.docker.com/r/tier/shib-idp/tags should be valid.
+
   LaunchType:
     Type: String
     Default: Fargate
@@ -186,6 +192,7 @@ Metadata:
       - Label:
           default: Shibboleth Configuration
         Parameters:
+          - ShibbolethVersionTag
           - SealerKeyVersionCount
       - Label:
           default: VPC Settings
