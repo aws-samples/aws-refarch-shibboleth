@@ -13,9 +13,9 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 def sort_by_tag(version_tags):
-  matches = [string for string in version_tags[1] if re.match('AWSPREVIOUS-CUSTOM_\d+', string)]
+  matches = [string for string in version_tags[1] if re.match(r'AWSPREVIOUS-CUSTOM_\d+', string)]
   if len(matches) > 0:
-    custom_number = re.search('AWSPREVIOUS-CUSTOM_(\d+)', matches[0])
+    custom_number = re.search(r'AWSPREVIOUS-CUSTOM_(\d+)', matches[0])
     return int(custom_number.group(1))+2
   elif "AWSCURRENT" in version_tags[1] or "AWSPENDING" in version_tags[1]:
     return 1

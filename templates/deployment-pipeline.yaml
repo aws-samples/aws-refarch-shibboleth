@@ -6,6 +6,12 @@ Parameters:
   Name:
     Type: String
 
+  Name:
+    Type: String
+
+  ShibbolethVersionTag:
+    Type: String
+
   ParentDomain:
     Type: String
 
@@ -46,6 +52,11 @@ Parameters:
   Service:
     Type: String
 
+  TaskRoleARN:
+    Type: String
+
+  TaskExecutionRoleARN:
+    Type: String
 
 Resources:
   CodeCommitRepo:
@@ -76,6 +87,18 @@ Resources:
               Service: codebuild.amazonaws.com
             Action: sts:AssumeRole
 
+  DockerBuildRuntimeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !GetAtt CodeBuildServiceRole.Arn
+            Action: sts:AssumeRole
+
   CodeBuildServiceRolePolicy:
     Type: AWS::IAM::Policy
     Properties:
@@ -93,7 +116,6 @@ Resources:
               - logs:CreateLogGroup
               - logs:CreateLogStream
               - logs:PutLogEvents
-              - ecr:GetAuthorizationToken
           - Resource: !Sub arn:aws:s3:::${ArtifactBucket}/*
             Effect: Allow
             Action:
@@ -106,10 +128,16 @@ Resources:
               - ecr:GetDownloadUrlForLayer
               - ecr:BatchGetImage
               - ecr:BatchCheckLayerAvailability
-              - ecr:PutImage
-              - ecr:InitiateLayerUpload
-              - ecr:UploadLayerPart
-              - ecr:CompleteLayerUpload
+      Roles:
+        - !Ref CodeBuildServiceRole
+
+  DockerBuildRuntimeRolePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub ${Name}-DockerBuildRuntimeRolePolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
           - Resource:
               - !Ref SecretsManagerSigningARN
               - !Ref SecretsManagerBackchannelARN
@@ -122,8 +150,22 @@ Resources:
               - secretsmanager:PutSecretValue
               - secretsmanager:DescribeSecret
               - secretsmanager:ListSecretVersionIds
+          - Resource: "*"
+            Effect: Allow
+            Action:
+              - ecr:GetAuthorizationToken
+          - Resource: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECRRepo}
+            Effect: Allow
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
       Roles:
-        - !Ref CodeBuildServiceRole
+        - !Ref DockerBuildRuntimeRole      
 
   CodePipelineServiceRole:
     Type: AWS::IAM::Role
@@ -167,6 +209,9 @@ Resources:
                   - ecs:UpdateService
                   - codebuild:StartBuild
                   - codebuild:BatchGetBuilds
+              - Resource: [!Ref TaskRoleARN, !Ref TaskExecutionRoleARN]
+                Effect: Allow
+                Action:
                   - iam:PassRole
 
   AmazonCloudWatchEventRole:
@@ -235,28 +280,24 @@ Resources:
               runtime-versions:
                 nodejs: 12
               commands:
-                - TEMP_ROLE=`aws sts assume-role --role-arn $CODE_BUILD_SERVICE_ROLE_ARN --role-session-name test`
+                - TEMP_ROLE=`aws sts assume-role --role-arn $DOCKER_BUILD_RUNTIME_ROLE_ARN --role-session-name ShibbolethDockerBuildRuntimeRole`
                 - export TEMP_ROLE
-                - echo $TEMP_ROLE
                 - export AWS_ACCESS_KEY_ID=$(echo "${TEMP_ROLE}" | jq -r '.Credentials.AccessKeyId')
                 - export AWS_SECRET_ACCESS_KEY=$(echo "${TEMP_ROLE}" | jq -r '.Credentials.SecretAccessKey')
                 - export AWS_SESSION_TOKEN=$(echo "${TEMP_ROLE}" | jq -r '.Credentials.SessionToken')
-                - echo $AWS_ACCESS_KEY_ID
-                - echo $AWS_SECRET_ACCESS_KEY
-                - echo $AWS_SESSION_TOKEN
-                - echo $PARENT_DOMAIN
-                - echo $FULLY_QUALIFIED_DOMAIN_NAME
             pre_build:
               commands:
                 - $(aws ecr get-login --no-include-email)
                 - TAG="$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | head -c 8)"
                 - IMAGE_URI="${REPOSITORY_URI}:${TAG}"
+                - LATEST_IMAGE_URI="${REPOSITORY_URI}:latest"
             build:
               commands:
-                - docker build --build-arg AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION --build-arg AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID --build-arg AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY --build-arg AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN --build-arg PARENT_DOMAIN=$PARENT_DOMAIN --build-arg FULLY_QUALIFIED_DOMAIN_NAME=$FULLY_QUALIFIED_DOMAIN_NAME --build-arg SECRETS_MANAGER_SIGNING_ARN=$SECRETS_MANAGER_SIGNING_ARN --build-arg SECRETS_MANAGER_BACKCHANNEL_ARN=$SECRETS_MANAGER_BACKCHANNEL_ARN --build-arg SECRETS_MANAGER_ENCRYPTION_ARN=$SECRETS_MANAGER_ENCRYPTION_ARN --build-arg SECRETS_MANAGER_LDAP_SETTINGS_ARN=$SECRETS_MANAGER_LDAP_SETTINGS_ARN --build-arg SECRETS_MANAGER_SEALER_KEY_ARN=$SECRETS_MANAGER_SEALER_KEY_ARN --tag "$IMAGE_URI" ./
+                - docker build --build-arg SHIB_VERSION=$SHIB_VERSION --build-arg AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION --build-arg AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID --build-arg AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY --build-arg AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN --build-arg PARENT_DOMAIN=$PARENT_DOMAIN --build-arg FULLY_QUALIFIED_DOMAIN_NAME=$FULLY_QUALIFIED_DOMAIN_NAME --build-arg SECRETS_MANAGER_SIGNING_ARN=$SECRETS_MANAGER_SIGNING_ARN --build-arg SECRETS_MANAGER_BACKCHANNEL_ARN=$SECRETS_MANAGER_BACKCHANNEL_ARN --build-arg SECRETS_MANAGER_ENCRYPTION_ARN=$SECRETS_MANAGER_ENCRYPTION_ARN --build-arg SECRETS_MANAGER_LDAP_SETTINGS_ARN=$SECRETS_MANAGER_LDAP_SETTINGS_ARN --build-arg SECRETS_MANAGER_SEALER_KEY_ARN=$SECRETS_MANAGER_SEALER_KEY_ARN --tag "$IMAGE_URI" --tag "$LATEST_IMAGE_URI" ./
             post_build:
               commands:
                 - docker push "$IMAGE_URI"
+                - docker push "$LATEST_IMAGE_URI"
                 - printf '[{"name":"shibboleth-idp","imageUri":"%s"}]' "$IMAGE_URI" > images.json
           artifacts:
             files: images.json
@@ -266,10 +307,12 @@ Resources:
         Type: LINUX_CONTAINER
         PrivilegedMode: true
         EnvironmentVariables:
+          - Name: SHIB_VERSION
+            Value: !Ref ShibbolethVersionTag
           - Name: AWS_DEFAULT_REGION
             Value: !Ref AWS::Region
-          - Name: CODE_BUILD_SERVICE_ROLE_ARN
-            Value: !GetAtt CodeBuildServiceRole.Arn
+          - Name: DOCKER_BUILD_RUNTIME_ROLE_ARN
+            Value: !GetAtt DockerBuildRuntimeRole.Arn
           - Name: PARENT_DOMAIN
             Value: !Ref ParentDomain
           - Name: FULLY_QUALIFIED_DOMAIN_NAME

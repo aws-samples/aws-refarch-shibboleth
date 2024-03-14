@@ -18,6 +18,12 @@ Description: >
   aws-shibboleth-idp-vpc.yaml
 
 Parameters:
+  ShibbolethVersionTag:
+    Type: String
+    Default: latest
+    Description: >
+      The tag to use for the base tier/shib-idp docker image.  Common options would be 'latest', 'latest5', or 'latest4'.  Any valid tag from https://hub.docker.com/r/tier/shib-idp/tags should be valid.
+
   LaunchType:
     Type: String
     Default: Fargate
@@ -199,6 +205,7 @@ Metadata:
       - Label:
           default: Shibboleth Configuration
         Parameters:
+          - ShibbolethVersionTag
           - SealerKeyVersionCount
       - Label:
           default: LDAP Settings
@@ -223,6 +230,15 @@ Resources:
         LDAPReadOnlyUser: !Ref LDAPReadOnlyUser
         LDAPReadOnlyPassword: !Ref LDAPReadOnlyPassword
 
+  SecurityGroups:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucket}.s3.amazonaws.com/${TemplateFolder}templates/security-groups.yml"
+      Parameters:
+        Name: !Ref AWS::StackName
+        LaunchType: !Ref LaunchType
+        VpcId: !Ref VPCID
+
   Cluster:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -230,7 +246,7 @@ Resources:
       Parameters:
         Name: !Ref AWS::StackName
         LaunchType: !Ref LaunchType
-        SourceSecurityGroup: !GetAtt LoadBalancer.Outputs.SecurityGroup
+        SecurityGroup: !GetAtt SecurityGroups.Outputs.ECSSecurityGroup
         Subnets: !Join [ ",", [ !Ref PrivateSubnet1ID, !Ref PrivateSubnet2ID ]]
         VpcId: !Ref VPCID
 
@@ -240,6 +256,7 @@ Resources:
       TemplateURL: !Sub "https://${TemplateBucket}.s3.amazonaws.com/${TemplateFolder}templates/deployment-pipeline.yaml"
       Parameters:
         Name: !Ref AWS::StackName
+        ShibbolethVersionTag: !Ref ShibbolethVersionTag
         Cluster: !GetAtt Cluster.Outputs.ClusterName
         Service: !GetAtt Service.Outputs.Service
         CodeCommitRepoName: !Ref CodeCommitRepoName
@@ -252,6 +269,8 @@ Resources:
         SecretsManagerSealerKeyARN: !GetAtt Secrets.Outputs.SealerKeyArn
         RepoSourceBucket: !Ref TemplateBucket
         RepoSourceFolder: !Ref TemplateFolder
+        TaskRoleARN: !GetAtt Service.Outputs.TaskRoleARN
+        TaskExecutionRoleARN: !GetAtt Service.Outputs.TaskExecutionRoleARN
 
   LoadBalancer:
     Type: AWS::CloudFormation::Stack
@@ -263,6 +282,7 @@ Resources:
         VpcId: !Ref VPCID
         CreateHTTPSListener: true
         CertificateARN: !Ref CertificateARN
+        LoadBalancerSecurityGroup: !GetAtt SecurityGroups.Outputs.LoadBalancerSecurityGroup
 
   Service:
     Type: AWS::CloudFormation::Stack
@@ -274,7 +294,7 @@ Resources:
         DesiredCount: 0
         LaunchType: !Ref LaunchType
         TargetGroup: !GetAtt LoadBalancer.Outputs.TargetGroup
-        SourceSecurityGroup: !GetAtt LoadBalancer.Outputs.SecurityGroup
+        SecurityGroup: !GetAtt SecurityGroups.Outputs.ECSSecurityGroup
         Subnets: !Join [ ",", [ !Ref PrivateSubnet1ID, !Ref PrivateSubnet2ID ] ]
         ContainerImageURI: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${CodeCommitRepoName}
         SealerKeyArn: !GetAtt Secrets.Outputs.SealerKeyArn

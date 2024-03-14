@@ -35,7 +35,7 @@ The following procedure will walk you through deploying a containerized Shibbole
 * (Optional) Cloning the newly created CodeCommit repo to your development machine
 * (Optional) Customizing your IdP
 * (Optional) Adding support for service providers to your IdP
-* (Optional) Adding AWS SSO Support to your IdP
+* (Optional) Adding AWS IAM Identity Center Support to your IdP
 
 ### Launching your CloudFormation stack
 
@@ -85,7 +85,7 @@ Since there is a bit of a chicken and egg situation with the cloud formation sta
 
 Locate the root CloudFormation stack that was deployed for this reference architecture (note that there are nested stacks, but we are looking for the root stack).  Under the Outputs tab, locate the ServiceUrl.  You can click on the link to open the IdP in your web browser.
 
-When the page is loaded, you should see a screen that says 'Our Identity Provider (replace this placeholder with your organizational logo/label)'.  If you get an error that says '503 Service Temporarily Unavailable', then you probably have no tasks running in the ECS service.  See the above instructions to update the desired task count of your ECS service.
+When the page is loaded, you should see a screen that says 'No services are available at this location'.  If you get an error that says '503 Service Temporarily Unavailable', then you probably have no tasks running in the ECS service.  See the above instructions to update the desired task count of your ECS service.
 
 <img src="images/unconfigured-idp-screenshot.png" width="50%">
 
@@ -160,30 +160,29 @@ You would then go into the Secrets Manager section of the AWS Console and click 
 ~~~
 ### Adding support for service providers to your IdP
 
-This solutions leverages the LocalDynamicMetadataProvider option for configuring service providers.  You can read more about how this works at https://wiki.shibboleth.net/confluence/display/IDP4/LocalDynamicMetadataProvider.  In order configure a new service provider, you would need to add metadata for the service provider to the “config/shib-idp/metadata/sp” directory of your repo.  You would then check the file in and push it to trigger a new deployment.  For an example of how this can be done, see the next section which discusses adding support for AWS SSO support.  The last section of steps in that go into a real-world example of how this can be done. 
+This solutions leverages the LocalDynamicMetadataProvider option for configuring service providers.  You can read more about how this works at https://wiki.shibboleth.net/confluence/display/IDP4/LocalDynamicMetadataProvider.  In order configure a new service provider, you would need to add metadata for the service provider to the “config/shib-idp/metadata/sp” directory of your repo.  You would then check the file in and push it to trigger a new deployment.  For an example of how this can be done, see the next section which discusses adding support for AWS IAM Identity Center support.  The last section of steps in that go into a real-world example of how this can be done. 
 
-### Adding AWS SSO Support to your IdP
+### Adding AWS IAM Identity Center Support to your IdP
 
-* Go to console and click “Enable AWS SSO” button
-* In the “User portal” section, customize the “User portal URL” as appropriate (make sure to do this first as some of the subsequent values will change).
+* Go to console for IAM Identity Center and click the "Enable" button in the "Enable IAM Idenity Center" section.  If you haven't already activated AWS Organizations, you will be prompted to do so and just need to click the "Create AWS organization" button.
+* After IAM Identity Center has been enabled, you will be presented with the dashboard.  In the “Settings summary" section, you can customize the “AWS access portal URL” as appropriate if you wish by clicking the "Customize" button. This is optional but, if you plan do customize the URL, make sure to do this first as some of the subsequent values will change.
 * Click step 1 “Choose your identity source”
-* In the "Identity source" section, Next to “Indentity source“ entry, click “Change”
-* Choose “External identity provider”
-* Next to “AWS SSO SAML metadata”, click “Download metadata file” and save it into your checked out repo at the path config/shib-idp/metadata/sp.  We will rename the file later after we compute the proper sha1 name for it.
-* Click on the link that says “If you don't have a metadata file, you can manually type your metadata values”.
-* In the “IdP sign-in URL” field enter: https://*fully qualified domain for idp*/idp/profile/SAML2/POST/SSO (make sure to substitute your IdP's FQDN in the url)
+* In the "Identity source" section, from the "Actions" drop down menu, choose "Change identity source".
+* Choose “External identity provider” and click "Next".
+* In the "Service provider metadata" section, click “Download metadata file” and save the file into your checked out CodeCommit repo at the path config/shib-idp/metadata/sp.  We will rename the file later after we compute the proper sha1 name for it.
+* In the "Identity provider metadata" section, in the “IdP sign-in URL” field enter: https://*fully qualified domain for idp*/idp/profile/SAML2/POST/SSO (make sure to substitute your IdP's FQDN in the url)
 * In the “IdP issuer URL” field enter: https://*fully qualified domain for idp*/idp/shibboleth (make sure to substitute your IdP's FQDN in the url)
 * In a new browser tab, visit the same link you just entered into the “IdP issuer URL” field and then view the page source.  Scroll down to the second X509Certificate XML element and copy the certificate data.
-* Paste that data into a file such as “shibboleth.xml” and save it.
-* In the “IdP certificate“ field, click the ”Browse...” button and choose the file you just created.
-* Click the “Next: Review” button.
+* Paste that data into a file such as “shibboleth.crt” and save it.
+* For the “IdP certificate“, click the ”Choose file” button and choose the file you just created ("shibboleth.crt" in this example).
+* Click the “Next” button.
 * Review the changes and follow the instructions if you accept them
 * Back on your local machine, in a terminal, make sure you are in the “config/shib-idp/metadata/sp” directory of your repo.
 * View the contents of the file you downloaded earlier and look for the field named “entityID”.  It should contain a URL similar to “https://us-east-1.signin.aws.amazon.com/platform/saml/d-90670f2e63“.   Copy that url and then run the command:
     * echo -n "https://us-east-1.signin.aws.amazon.com/platform/saml/d-90670f2e63" | openssl sha1 (but replace the url with the one you just copied).
     * The output of this command should be something like: 202eae420fda1d65c5c608032bc1add15650261b
-    * That sha1 code is what you need to rename your file.  So, in this example. I would rename the file to 202eae420fda1d65c5c608032bc1add15650261b.xml
-    * Add this file to your repo and check it in (this will trigger your pipeline to run and in a few minutes, your configuration for AWS sso should be complete).  Once you see that the “Deploy” phase back in the “CodePipeline” section of the AWS console has finished, you can test the integration by going to the “User portal URL” shown in the “Settings” section of of the “AWS SSO” service in the AWS console.  If everything worked properly, you should see a login page being served up from your IdP.
+    * That sha1 code is what you need to rename your file.  So, in this example. I would rename the file to 202eae420fda1d65c5c608032bc1add15650261b.crt
+    * Add this file to your repo and check it in (this will trigger your pipeline to run and in a few minutes, your configuration for AWS sso should be complete).  Once you see that the “Deploy” phase back in the “CodePipeline” section of the AWS console has finished, you can test the integration by going to the “AWS access portal URL” shown in the “Settings” section of of the “AWS IAM Idenity Center” service in the AWS console.  If everything worked properly, you should see a login page being served up from your IdP.
 
 ### Updating LDAP Settings
 
@@ -222,13 +221,13 @@ ldapsearch -H <ldap_url> -x -W -D "<read_only_user>" -b "<base_dn>"
 
 from the command line, substituting the values that are stored in the *<stack_name>-ldap-settings* secret in AWS Secrets Manager.  Do not include the <> symbols.  When prompted for your password, use the *read_only_password* setting that is also stored in the secret.  If you don't get back a list of objects (including the user object you are trying to login with), then you may have an issue with your LDAP settings.
 
-## AWS SSO Issues
+## AWS IAM Identity Center Issues
 
 If, after you login to the IdP, you get redirected and see an error such as the following
 
 <img src="images/incorrect-cert-screenshot.png" width="50%">
 
-then you may not have used the correct certificate (second one) from the https://*fully qualified domain for idp*/idp/shibboleth page.  Double check that you did and re-enter it in the AWS SSO configuration if needed. Another possible cause is if the email address for your user doesn't match that in the ldap server.  In this case, make sure that the parent domain you supplied when you launched the stack matches your email domain.
+then you may not have used the correct certificate (second one) from the https://*fully qualified domain for idp*/idp/shibboleth page.  Double check that you did and re-enter it in the AWS IAM Identity Center configuration if needed. Another possible cause is if the email address for your user doesn't match that in the ldap server.  In this case, make sure that the parent domain you supplied when you launched the stack matches your email domain.
 
 ### Cleanup
 

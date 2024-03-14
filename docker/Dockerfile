@@ -1,5 +1,8 @@
-FROM tier/shib-idp:latest
+ARG SHIB_VERSION=latest
 
+FROM tier/shib-idp:${SHIB_VERSION}
+
+ARG SHIB_VERSION=latest
 ARG AWS_DEFAULT_REGION 
 ARG AWS_ACCESS_KEY_ID 
 ARG AWS_SECRET_ACCESS_KEY 
@@ -11,33 +14,69 @@ ARG SECRETS_MANAGER_BACKCHANNEL_ARN
 ARG SECRETS_MANAGER_ENCRYPTION_ARN
 ARG SECRETS_MANAGER_SEALER_KEY_ARN
 ARG SECRETS_MANAGER_LDAP_SETTINGS_ARN
+#ARG JAR_JSR_VERSION=3.0.2
+#ARG JAR_SHIB_SUPPORT_VERSION=9.0.0
+#ARG JAR_SHIB_SECURITY_VERSION=9.0.0
+#ARG JAR_LOGBACK_VERSION=1.4.14
 
-ADD config/shib-idp/conf/idp.properties config/shib-idp/conf/ldap.properties config/shib-idp/conf/metadata-providers.xml config/shib-idp/conf/attribute-resolver.xml config/shib-idp/conf/attribute-filter.xml config/shib-idp/conf/saml-nameid.xml config/shib-idp/conf/global.xml /opt/shibboleth-idp/conf/
+ADD config/shib-idp/conf/idp.properties config/shib-idp/conf/ldap.properties.* config/shib-idp/conf/metadata-providers.xml.* config/shib-idp/conf/attribute-resolver.xml config/shib-idp/conf/attribute-filter.xml config/shib-idp/conf/saml-nameid.xml config/shib-idp/conf/global.xml.* /opt/shibboleth-idp/conf/
 ADD config/shib-idp/metadata/idp-metadata.xml /opt/shibboleth-idp/metadata/
 ADD config/shib-idp/metadata/sp /opt/shibboleth-idp/metadata/sp
 ADD config/shib-idp/credentials/ldap-server.truststore /opt/shibboleth-idp/credentials/
 ADD config/shib-idp/messages /opt/shibboleth-idp/messages
 ADD config/shib-idp/edit-webapp /opt/shibboleth-idp/edit-webapp
 
-# Add the AWS Java SDK to the IdP webapp
-RUN echo "Adding the AWS SDK for Java"; \
-    mkdir -p /tmp/aws-java-sdk-installation && \
-    cd /tmp/aws-java-sdk-installation && \
-    wget -q https://sdk-for-java.amazonwebservices.com/latest/aws-java-sdk.zip && \
-    unzip -q -o aws-java-sdk.zip && \
-    rm aws-java-sdk-*/lib/aws-java-sdk-*-javadoc.jar && \
-    rm aws-java-sdk-*/lib/aws-java-sdk-*-sources.jar && \
-    cp aws-java-sdk-*/lib/aws-java-sdk-*.jar /opt/shibboleth-idp/edit-webapp/WEB-INF/lib/ && \
-    cd ~ && \
-    rm -rf /tmp/aws-java-sdk-installation
-
 # Build and add the AWSSecretsManagerKeyStrategy.class file to the IdP webapp
 RUN mkdir -p /tmp/aws-secrets-manager-build
-ADD src/AWSSecretsManagerKeyStrategy.java /tmp/aws-secrets-manager-build/
+ADD src/AWSSecretsManagerKeyStrategy-Shibboleth4.java /tmp/aws-secrets-manager-build/AWSSecretsManagerKeyStrategy-Shibboleth4.java
+ADD src/AWSSecretsManagerKeyStrategy-Shibboleth5.java /tmp/aws-secrets-manager-build/AWSSecretsManagerKeyStrategy-Shibboleth5.java
 RUN echo "Building the custom DataSealerKeyStrategy implementation that uses AWS Secrets Manager"; \
-    cd /tmp/aws-secrets-manager-build && \
-    javac -cp /opt/shibboleth-idp/dist/webapp/WEB-INF/lib/*:/opt/shibboleth-idp/edit-webapp/WEB-INF/lib/* \
-      AWSSecretsManagerKeyStrategy.java -d /opt/shibboleth-idp/edit-webapp/WEB-INF/classes/ && \
+    version=`echo ${SHIB_VERSION} | sed -r 's/^[^0-9]*([0-9]+).*/\1/g'` && \
+    if [ "$version" = "latest" ]; then \
+      version="5"; \
+    fi && \
+    mv "/opt/shibboleth-idp/conf/ldap.properties.v$version" /opt/shibboleth-idp/conf/ldap.properties && \
+    rm -f /opt/shibboleth-idp/conf/ldap.properties.v* && \
+    mv "/opt/shibboleth-idp/conf/metadata-providers.xml.v$version" /opt/shibboleth-idp/conf/metadata-providers.xml && \
+    rm -f /opt/shibboleth-idp/conf/metadata-providers.xml.v* && \
+    mv "/opt/shibboleth-idp/conf/global.xml.v$version" /opt/shibboleth-idp/conf/global.xml && \
+    rm -f /opt/shibboleth-idp/conf/global.xml.v* && \
+    if [ "$version" = "4" ]; then \
+      mkdir -p /tmp/aws-java-sdk-installation && \
+      cd /tmp/aws-java-sdk-installation && \
+      wget -q https://sdk-for-java.amazonwebservices.com/latest/aws-java-sdk.zip && \
+      unzip -q -o aws-java-sdk.zip && \
+      rm aws-java-sdk-*/lib/aws-java-sdk-*-javadoc.jar && \
+      rm aws-java-sdk-*/lib/aws-java-sdk-*-sources.jar && \
+      cp aws-java-sdk-*/lib/aws-java-sdk-*.jar /opt/shibboleth-idp/edit-webapp/WEB-INF/lib/ && \
+      cd /tmp/aws-secrets-manager-build && \
+      rm -rf /tmp/aws-java-sdk-installation && \
+      mv "AWSSecretsManagerKeyStrategy-Shibboleth$version.java" AWSSecretsManagerKeyStrategy.java && \
+      rm -f AWSSecretsManagerKeyStrategy-Shibboleth*.java && \
+      javac -cp /opt/shibboleth-idp/dist/webapp/WEB-INF/lib/*:/opt/shibboleth-idp/edit-webapp/WEB-INF/lib/* AWSSecretsManagerKeyStrategy.java -d /opt/shibboleth-idp/edit-webapp/WEB-INF/classes/; \
+    else \
+      yum -y install maven xmlstarlet && \
+      cd /tmp/aws-secrets-manager-build && \
+      mvn archetype:generate -DarchetypeGroupId=software.amazon.awssdk -DarchetypeArtifactId=archetype-app-quickstart -Dservice=secretsmanager -DhttpClient=apache-client -DnativeImage=false -D credentialProvider=default -DgroupId=AWSSecretsManagerKeyStrategy -DartifactId=AWSSecretsManagerKeyStrategy -Dversion=1.0.0 -Dpackage=AWSSecretsManagerKeyStrategy -DinteractiveMode=false && \
+      mv "AWSSecretsManagerKeyStrategy-Shibboleth$version.java" AWSSecretsManagerKeyStrategy/src/main/java/AWSSecretsManagerKeyStrategy/AWSSecretsManagerKeyStrategy.java && \
+      rm -f AWSSecretsManagerKeyStrategy-Shibboleth*.java && \
+      cd AWSSecretsManagerKeyStrategy && \
+      jar_jsr_version=`ls /opt/shibboleth-idp/dist/webapp/WEB-INF/lib/jsr305-[0-9*].*.jar | sed -r 's/.*-(.*).jar/\1/g'` && \
+      jar_shib_support_version=`ls /opt/shibboleth-idp/dist/webapp/WEB-INF/lib/shib-support-[0-9*].*.jar | sed -r 's/.*-(.*).jar/\1/g'` && \
+      jar_shib_security_version=`ls /opt/shibboleth-idp/dist/webapp/WEB-INF/lib/shib-security-[0-9*].*.jar | sed -r 's/.*-(.*).jar/\1/g'` && \
+      jar_logback_version=`ls /opt/shibboleth-idp/dist/webapp/WEB-INF/lib/logback-classic-[0-9*].*.jar | sed -r 's/.*-(.*).jar/\1/g'` && \
+      mvn org.apache.maven.plugins:maven-install-plugin:2.5.2:install-file -Dfile=/opt/shibboleth-idp/dist/webapp/WEB-INF/lib/jsr305-${jar_jsr_version}.jar && \
+      mvn org.apache.maven.plugins:maven-install-plugin:2.5.2:install-file -Dfile=/opt/shibboleth-idp/dist/webapp/WEB-INF/lib/shib-support-${jar_shib_support_version}.jar && \
+      mvn org.apache.maven.plugins:maven-install-plugin:2.5.2:install-file -Dfile=/opt/shibboleth-idp/dist/webapp/WEB-INF/lib/shib-security-${jar_shib_security_version}.jar && \
+      xmlstarlet ed --inplace -N pom=http://maven.apache.org/POM/4.0.0 -s /pom:project/pom:dependencies -t elem -n dependency -v "" --var dependency '$prev' -s '$dependency' -t elem -n groupId -v com.google.code.findbugs -s '$dependency' -t elem -n artifactId -v jsr305 -s '$dependency' -t elem -n version -v ${jar_jsr_version} pom.xml && \
+      xmlstarlet ed --inplace -N pom=http://maven.apache.org/POM/4.0.0 -s /pom:project/pom:dependencies -t elem -n dependency -v "" --var dependency '$prev' -s '$dependency' -t elem -n groupId -v net.shibboleth -s '$dependency' -t elem -n artifactId -v shib-support -s '$dependency' -t elem -n version -v ${jar_shib_support_version} pom.xml && \
+      xmlstarlet ed --inplace -N pom=http://maven.apache.org/POM/4.0.0 -s /pom:project/pom:dependencies -t elem -n dependency -v "" --var dependency '$prev' -s '$dependency' -t elem -n groupId -v net.shibboleth -s '$dependency' -t elem -n artifactId -v shib-security -s '$dependency' -t elem -n version -v ${jar_shib_security_version} pom.xml && \
+      xmlstarlet ed --inplace -N pom="http://maven.apache.org/POM/4.0.0" -d "/pom:project/pom:dependencies/pom:dependency[pom:groupId='org.slf4j']" pom.xml && \
+      xmlstarlet ed --inplace -N pom=http://maven.apache.org/POM/4.0.0 -s /pom:project/pom:dependencies -t elem -n dependency -v "" --var dependency '$prev' -s '$dependency' -t elem -n groupId -v ch.qos.logback -s '$dependency' -t elem -n artifactId -v logback-classic -s '$dependency' -t elem -n version -v ${jar_logback_version} pom.xml && \
+      xmlstarlet ed --inplace -N pom=http://maven.apache.org/POM/4.0.0 -s /pom:project/pom:build/pom:plugins -t elem -n plugin -v "" --var plugin '$prev' -s '$plugin' -t elem -n artifactId -v maven-assembly-plugin -s '$plugin' -t elem -n executions -v "" --var executions '$prev' -s '$executions' -t elem -n execution -v "" --var execution '$prev' -s '$execution' -t elem -n phase -v package -s '$execution' -t elem -n goals -v "" --var goals '$prev' -s '$goals' -t elem -n goal -v single -s '$plugin' -t elem -n configuration -v "" -s '$prev' -t elem -n descriptorRefs -v "" -s '$prev' -t elem -n descriptorRef -v jar-with-dependencies pom.xml && \
+      mvn package && \
+      cp target/AWSSecretsManagerKeyStrategy-1.0.0-jar-with-dependencies.jar /opt/shibboleth-idp/edit-webapp/WEB-INF/lib/; \
+    fi && \
     cd ~ && \
     rm -rf /tmp/aws-secrets-manager-build
 
@@ -52,18 +91,7 @@ RUN echo "Installing the AWS CLI"; \
     rm -rf /tmp/aws-cli-installation
 
 # Install jq
-ENV JQ_VERSION='1.5'
-
-RUN wget --no-check-certificate https://raw.githubusercontent.com/stedolan/jq/master/sig/jq-release.key -O /tmp/jq-release.key && \
-    wget --no-check-certificate https://raw.githubusercontent.com/stedolan/jq/master/sig/v${JQ_VERSION}/jq-linux64.asc -O /tmp/jq-linux64.asc && \
-    wget --no-check-certificate https://github.com/stedolan/jq/releases/download/jq-${JQ_VERSION}/jq-linux64 -O /tmp/jq-linux64 && \
-    gpg --import /tmp/jq-release.key && \
-    gpg --verify /tmp/jq-linux64.asc /tmp/jq-linux64 && \
-    cp /tmp/jq-linux64 /usr/bin/jq && \
-    chmod +x /usr/bin/jq && \
-    rm -f /tmp/jq-release.key && \
-    rm -f /tmp/jq-linux64.asc && \
-    rm -f /tmp/jq-linux64
+RUN yum -y install jq
 
 # Install openssl
 RUN yum -y install openssl

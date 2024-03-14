@@ -29,7 +29,7 @@ Parameters:
   Subnets:
     Type: List<AWS::EC2::Subnet::Id>
 
-  SourceSecurityGroup:
+  SecurityGroup:
     Type: AWS::EC2::SecurityGroup::Id
 
   VpcId:
@@ -61,16 +61,6 @@ Resources:
       Path: /
       Roles:
         - !Ref ECSRole
-
-  SecurityGroup:
-    Type: "AWS::EC2::SecurityGroup"
-    Condition: EC2
-    Properties:
-      GroupDescription: !Sub ${Name}-hosts
-      SecurityGroupIngress:
-        - SourceSecurityGroupId: !Ref SourceSecurityGroup
-          IpProtocol: -1
-      VpcId: !Ref VpcId
 
   Cluster:
     Type: AWS::ECS::Cluster

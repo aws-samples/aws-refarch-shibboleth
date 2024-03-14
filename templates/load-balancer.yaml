@@ -28,6 +28,9 @@ Parameters:
   VpcId:
     Type: String
 
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+
 
 Conditions:
   EC2: !Equals [ !Ref LaunchType, "EC2" ]
@@ -35,23 +38,12 @@ Conditions:
   HTTPS: !Equals [ !Ref CreateHTTPSListener, "true" ]
 
 Resources:
-  SecurityGroup:
-    Type: "AWS::EC2::SecurityGroup"
-    Properties:
-      GroupDescription: !Sub ${AWS::StackName}-alb
-      SecurityGroupIngress:
-        - CidrIp: "0.0.0.0/0"
-          IpProtocol: "TCP"
-          FromPort: 443
-          ToPort: 443
-      VpcId: !Ref VpcId
-
   LoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
       Subnets: !Ref Subnets
       SecurityGroups:
-        - !Ref SecurityGroup
+        - !Ref LoadBalancerSecurityGroup
 
   LoadBalancerListenerSSL:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -119,6 +111,3 @@ Outputs:
   ServiceUrl:
     Description: URL of the load balancer for the idp service.
     Value: !Sub https://${LoadBalancer.DNSName}/idp/
-
-  SecurityGroup:
-    Value: !Ref SecurityGroup
