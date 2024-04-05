@@ -14,10 +14,6 @@ ARG SECRETS_MANAGER_BACKCHANNEL_ARN
 ARG SECRETS_MANAGER_ENCRYPTION_ARN
 ARG SECRETS_MANAGER_SEALER_KEY_ARN
 ARG SECRETS_MANAGER_LDAP_SETTINGS_ARN
-#ARG JAR_JSR_VERSION=3.0.2
-#ARG JAR_SHIB_SUPPORT_VERSION=9.0.0
-#ARG JAR_SHIB_SECURITY_VERSION=9.0.0
-#ARG JAR_LOGBACK_VERSION=1.4.14
 
 ADD config/shib-idp/conf/idp.properties config/shib-idp/conf/ldap.properties.* config/shib-idp/conf/metadata-providers.xml.* config/shib-idp/conf/attribute-resolver.xml config/shib-idp/conf/attribute-filter.xml config/shib-idp/conf/saml-nameid.xml config/shib-idp/conf/global.xml.* /opt/shibboleth-idp/conf/
 ADD config/shib-idp/metadata/idp-metadata.xml /opt/shibboleth-idp/metadata/
