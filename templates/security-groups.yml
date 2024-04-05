@@ -1,0 +1,268 @@
+
+AWSTemplateFormatVersion: 2010-09-09
+
+
+Parameters:
+  Name:
+    Type: String
+
+  LaunchType:
+    Type: String
+    Default: Fargate
+    AllowedValues:
+      - Fargate
+      - EC2
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+
+Conditions:
+  EC2: !Equals [ !Ref LaunchType, "EC2" ]
+  Fargate: !Equals [ !Ref LaunchType, "Fargate" ]
+
+Resources:
+  LoadBalancerSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: !Sub ${Name}-alb
+      VpcId: !Ref VpcId
+
+  ECSInstanceSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Condition: EC2
+    Properties:
+      GroupDescription: !Sub ${Name}-ecs-instance
+      VpcId: !Ref VpcId
+
+  FargateServiceSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Condition: Fargate
+    Properties:
+      GroupDescription: !Sub ${Name}-fargate-service
+      VpcId: !Ref VpcId
+    
+  LoadBalancerInboundRule1:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      CidrIp: "0.0.0.0/0"
+      Description: "Allow HTTPS from everywhere"
+      IpProtocol: "TCP"
+      FromPort: 443
+      ToPort: 443
+      GroupId:
+        !GetAtt LoadBalancerSecurityGroup.GroupId
+  
+  LoadBalancerOutboundRule1ForEC2:
+    Type: AWS::EC2::SecurityGroupEgress
+    Condition: EC2
+    Properties:
+      Description: "Allow HTTPS to ECS instances"
+      IpProtocol: "TCP"
+      FromPort: 443
+      ToPort: 443
+      DestinationSecurityGroupId:
+        !GetAtt ECSInstanceSecurityGroup.GroupId
+      GroupId:
+        !GetAtt LoadBalancerSecurityGroup.GroupId
+
+  LoadBalancerOutboundRule2ForEC2:
+    Type: AWS::EC2::SecurityGroupEgress
+    Condition: EC2
+    Properties:
+      Description: "Allow dynamic port traffic to ECS instances"
+      IpProtocol: "TCP"
+      FromPort: 49153
+      ToPort: 65535
+      DestinationSecurityGroupId:
+        !GetAtt ECSInstanceSecurityGroup.GroupId
+      GroupId:
+        !GetAtt LoadBalancerSecurityGroup.GroupId
+
+  LoadBalancerOutboundRule1ForFargate:
+    Type: AWS::EC2::SecurityGroupEgress
+    Condition: Fargate
+    Properties:
+      Description: "Allow HTTPS to Fargate service"
+      IpProtocol: "TCP"
+      FromPort: 443
+      ToPort: 443
+      DestinationSecurityGroupId:
+        !GetAtt FargateServiceSecurityGroup.GroupId
+      GroupId:
+        !GetAtt LoadBalancerSecurityGroup.GroupId
+
+  ECSInstanceInboundRule1:
+    Type: AWS::EC2::SecurityGroupIngress
+    Condition: EC2
+    Properties:
+      Description: "Allow HTTPS from ALB"
+      IpProtocol: "TCP"
+      FromPort: 443
+      ToPort: 443
+      SourceSecurityGroupId:
+        !GetAtt LoadBalancerSecurityGroup.GroupId
+      GroupId:
+        !GetAtt ECSInstanceSecurityGroup.GroupId
+
+  ECSInstanceInboundRule2:
+    Type: AWS::EC2::SecurityGroupIngress
+    Condition: EC2
+    Properties:
+      Description: "Allow traffic from ALB on dynamic ports"
+      IpProtocol: "TCP"
+      FromPort: 49153
+      ToPort: 65535
+      SourceSecurityGroupId:
+        !GetAtt LoadBalancerSecurityGroup.GroupId
+      GroupId:
+        !GetAtt ECSInstanceSecurityGroup.GroupId
+
+
+  ECSInstanceOutboundRule1:
+    Type: AWS::EC2::SecurityGroupEgress
+    Condition: EC2
+    Properties:
+      Description: "Allow HTTPS to anywhere"
+      IpProtocol: "TCP"
+      FromPort: 443
+      ToPort: 443
+      CidrIp:
+        0.0.0.0/0
+      GroupId:
+        !GetAtt ECSInstanceSecurityGroup.GroupId
+
+  ECSInstanceOutboundRule2:
+    Type: AWS::EC2::SecurityGroupEgress
+    Condition: EC2
+    Properties:
+      Description: "Allow DNS UDP to anywhere"
+      IpProtocol: "UDP"
+      FromPort: 53
+      ToPort: 53
+      CidrIp:
+        0.0.0.0/0
+      GroupId:
+        !GetAtt ECSInstanceSecurityGroup.GroupId
+
+  ECSInstanceOutboundRule3:
+    Type: AWS::EC2::SecurityGroupEgress
+    Condition: EC2
+    Properties:
+      Description: "Allow DNS TCP to anywhere"
+      IpProtocol: "TCP"
+      FromPort: 53
+      ToPort: 53
+      CidrIp:
+        0.0.0.0/0
+      GroupId:
+        !GetAtt ECSInstanceSecurityGroup.GroupId
+
+  ECSInstanceOutboundRule4:
+    Type: AWS::EC2::SecurityGroupEgress
+    Condition: EC2
+    Properties:
+      Description: "Allow LDAP to anywhere"
+      IpProtocol: "TCP"
+      FromPort: 389
+      ToPort: 389
+      CidrIp:
+        0.0.0.0/0
+      GroupId:
+        !GetAtt ECSInstanceSecurityGroup.GroupId
+
+  ECSInstanceOutboundRule5:
+    Type: AWS::EC2::SecurityGroupEgress
+    Condition: EC2
+    Properties:
+      Description: "Allow LDAPS to anywhere"
+      IpProtocol: "TCP"
+      FromPort: 636
+      ToPort: 636
+      CidrIp:
+        0.0.0.0/0
+      GroupId:
+        !GetAtt ECSInstanceSecurityGroup.GroupId
+
+  FargateServiceInboundRule1:
+    Type: AWS::EC2::SecurityGroupIngress
+    Condition: Fargate
+    Properties:
+      Description: "Allow HTTPS from ALB"
+      IpProtocol: "TCP"
+      FromPort: 443
+      ToPort: 443
+      SourceSecurityGroupId:
+        !GetAtt LoadBalancerSecurityGroup.GroupId
+      GroupId:
+        !GetAtt FargateServiceSecurityGroup.GroupId
+
+  FargateServiceOutboundRule1:
+    Type: AWS::EC2::SecurityGroupEgress
+    Condition: Fargate
+    Properties:
+      Description: "Allow HTTPS to anywhere"
+      IpProtocol: "TCP"
+      FromPort: 443
+      ToPort: 443
+      CidrIp:
+        0.0.0.0/0
+      GroupId:
+        !GetAtt FargateServiceSecurityGroup.GroupId
+
+  FargateServiceOutboundRule2:
+    Type: AWS::EC2::SecurityGroupEgress
+    Condition: Fargate
+    Properties:
+      Description: "Allow DNS UDP to anywhere"
+      IpProtocol: "UDP"
+      FromPort: 53
+      ToPort: 53
+      CidrIp:
+        0.0.0.0/0
+      GroupId:
+        !GetAtt FargateServiceSecurityGroup.GroupId
+
+  FaragateServiceOutboundRule3:
+    Type: AWS::EC2::SecurityGroupEgress
+    Condition: Fargate
+    Properties:
+      Description: "Allow DNS TCP to anywhere"
+      IpProtocol: "TCP"
+      FromPort: 53
+      ToPort: 53
+      CidrIp:
+        0.0.0.0/0
+      GroupId:
+        !GetAtt FargateServiceSecurityGroup.GroupId
+
+  FaragateServiceOutboundRule4:
+    Type: AWS::EC2::SecurityGroupEgress
+    Condition: Fargate
+    Properties:
+      Description: "Allow LDAP to anywhere"
+      IpProtocol: "TCP"
+      FromPort: 389
+      ToPort: 389
+      CidrIp:
+        0.0.0.0/0
+      GroupId:
+        !GetAtt FargateServiceSecurityGroup.GroupId
+
+  FaragateServiceOutboundRule5:
+    Type: AWS::EC2::SecurityGroupEgress
+    Condition: Fargate
+    Properties:
+      Description: "Allow LDAPS to anywhere"
+      IpProtocol: "TCP"
+      FromPort: 636
+      ToPort: 636
+      CidrIp:
+        0.0.0.0/0
+      GroupId:
+        !GetAtt FargateServiceSecurityGroup.GroupId
+
+Outputs:
+  LoadBalancerSecurityGroup:
+    Value: !Ref LoadBalancerSecurityGroup
+  ECSSecurityGroup:
+    Value: !If [ EC2, !Ref ECSInstanceSecurityGroup, !Ref FargateServiceSecurityGroup ]

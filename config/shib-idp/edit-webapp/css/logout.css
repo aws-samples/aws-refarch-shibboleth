@@ -1,4 +1,7 @@
 /* Success/Failure indicators for logout propagation. */
+ol li:before {
+    content: ''
+}
 li.logout {
     line-height: 36px;
     padding-left: 36px;
