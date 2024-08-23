@@ -226,6 +226,7 @@ public class AWSSecretsManagerKeyStrategy extends AbstractInitializableComponent
       }
             
       if(versionId.length() < 32 || versionId.length() > 64) {
+        log.warn("getKey({}) invalid version id length", versionId);
 	throw new KeyNotFoundException("Invalid version id length");
       }
 
@@ -235,6 +236,7 @@ public class AWSSecretsManagerKeyStrategy extends AbstractInitializableComponent
 
       SecretKey secretKey = getSecretKeyFromGetSecretValueResult(getSecretValueResult);
       if (secretKey == null) {
+        log.warn("getKey({}) key with specified version id not found", versionId);
 	throw new KeyNotFoundException("Key not found");
       }
       log.debug("getKey({}) returning SecretKey => Format: {}, Algorithm: {}, Encoded Value: {}", versionId, secretKey.getFormat(), secretKey.getAlgorithm(), new String(secretKey.getEncoded()));
