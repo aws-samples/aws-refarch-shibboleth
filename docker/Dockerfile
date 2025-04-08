@@ -1,6 +1,6 @@
 ARG SHIB_VERSION=latest
 
-FROM tier/shib-idp:${SHIB_VERSION}
+FROM i2incommon/shib-idp:${SHIB_VERSION}
 
 ARG SHIB_VERSION=latest
 ARG AWS_DEFAULT_REGION 
