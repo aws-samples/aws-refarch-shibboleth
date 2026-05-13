@@ -251,6 +251,7 @@ Resources:
       TemplateURL: !Sub "https://${TemplateBucket}.s3.amazonaws.com/${TemplateFolder}templates/deployment-pipeline.yaml"
       Parameters:
         Name: !Ref AWS::StackName
+        ShibbolethVersionTag: !Ref ShibbolethVersionTag
         Cluster: !GetAtt Cluster.Outputs.ClusterName
         Service: !GetAtt Service.Outputs.Service
         CodeCommitRepoName: !Ref CodeCommitRepoName
