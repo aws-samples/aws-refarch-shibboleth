@@ -25,6 +25,7 @@ import net.shibboleth.shared.security.DataSealerKeyStrategy;
 
 import javax.crypto.spec.SecretKeySpec;
 
+import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
 import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueRequest;
 import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueResponse;
@@ -231,7 +232,15 @@ public class AWSSecretsManagerKeyStrategy extends AbstractInitializableComponent
   }
 
   private SecretsManagerClient getClient() {
-    return SecretsManagerClient.builder().build();
+    // Use the JDK-native URL-connection HTTP client instead of the SDK's default
+    // (Apache) client. This keeps the SDK fully functional (SigV4, credential chain,
+    // retries) while avoiding Apache HttpClient / Netty transitive dependencies, which
+    // otherwise land unshaded on the Shibboleth IdP classpath and conflict with the
+    // IdP's own HTTP stack (TLS host-verification failures at startup). Setting it
+    // explicitly also disambiguates if another SdkHttpService is present on the classpath.
+    return SecretsManagerClient.builder()
+        .httpClientBuilder(UrlConnectionHttpClient.builder())
+        .build();
   }
 
   private GetSecretValueResponse getSecretValueResponse(String versionId) {
