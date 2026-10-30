@@ -53,7 +53,7 @@ RUN echo "Building the custom DataSealerKeyStrategy implementation that uses AWS
     else \
       yum -y install maven xmlstarlet && \
       cd /tmp/aws-secrets-manager-build && \
-      mvn archetype:generate -DarchetypeGroupId=software.amazon.awssdk -DarchetypeArtifactId=archetype-app-quickstart -Dservice=secretsmanager -DhttpClient=apache-client -DnativeImage=false -D credentialProvider=default -DgroupId=AWSSecretsManagerKeyStrategy -DartifactId=AWSSecretsManagerKeyStrategy -Dversion=1.0.0 -Dpackage=AWSSecretsManagerKeyStrategy -DinteractiveMode=false && \
+      mvn archetype:generate -DarchetypeGroupId=software.amazon.awssdk -DarchetypeArtifactId=archetype-app-quickstart -Dservice=secretsmanager -DhttpClient=url-connection-client -DnativeImage=false -D credentialProvider=default -DgroupId=AWSSecretsManagerKeyStrategy -DartifactId=AWSSecretsManagerKeyStrategy -Dversion=1.0.0 -Dpackage=AWSSecretsManagerKeyStrategy -DinteractiveMode=false && \
       mv "AWSSecretsManagerKeyStrategy-Shibboleth$version.java" AWSSecretsManagerKeyStrategy/src/main/java/AWSSecretsManagerKeyStrategy/AWSSecretsManagerKeyStrategy.java && \
       rm -f AWSSecretsManagerKeyStrategy-Shibboleth*.java && \
       cd AWSSecretsManagerKeyStrategy && \
@@ -64,6 +64,7 @@ RUN echo "Building the custom DataSealerKeyStrategy implementation that uses AWS
       mvn org.apache.maven.plugins:maven-install-plugin:2.5.2:install-file -Dfile=/opt/shibboleth-idp/dist/webapp/WEB-INF/lib/jsr305-${jar_jsr_version}.jar && \
       mvn org.apache.maven.plugins:maven-install-plugin:2.5.2:install-file -Dfile=/opt/shibboleth-idp/dist/webapp/WEB-INF/lib/shib-support-${jar_shib_support_version}.jar && \
       mvn org.apache.maven.plugins:maven-install-plugin:2.5.2:install-file -Dfile=/opt/shibboleth-idp/dist/webapp/WEB-INF/lib/shib-security-${jar_shib_security_version}.jar && \
+      xmlstarlet ed --inplace -N pom=http://maven.apache.org/POM/4.0.0 -s "/pom:project/pom:dependencies/pom:dependency[pom:artifactId='secretsmanager']/pom:exclusions" -t elem -n exclusion -v "" --var excl '$prev' -s '$excl' -t elem -n groupId -v software.amazon.awssdk -s '$excl' -t elem -n artifactId -v apache5-client pom.xml && \
       xmlstarlet ed --inplace -N pom=http://maven.apache.org/POM/4.0.0 -s /pom:project/pom:dependencies -t elem -n dependency -v "" --var dependency '$prev' -s '$dependency' -t elem -n groupId -v com.google.code.findbugs -s '$dependency' -t elem -n artifactId -v jsr305 -s '$dependency' -t elem -n version -v ${jar_jsr_version} pom.xml && \
       xmlstarlet ed --inplace -N pom=http://maven.apache.org/POM/4.0.0 -s /pom:project/pom:dependencies -t elem -n dependency -v "" --var dependency '$prev' -s '$dependency' -t elem -n groupId -v net.shibboleth -s '$dependency' -t elem -n artifactId -v shib-support -s '$dependency' -t elem -n version -v ${jar_shib_support_version} pom.xml && \
       xmlstarlet ed --inplace -N pom=http://maven.apache.org/POM/4.0.0 -s /pom:project/pom:dependencies -t elem -n dependency -v "" --var dependency '$prev' -s '$dependency' -t elem -n groupId -v net.shibboleth -s '$dependency' -t elem -n artifactId -v shib-security -s '$dependency' -t elem -n version -v ${jar_shib_security_version} pom.xml && \
